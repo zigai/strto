@@ -75,3 +75,34 @@ def type_args(t: Any) -> tuple[Any, ...]:
         (list[str],)
     """
     return typing.get_args(t)
+
+
+def type_simplify(t: Any) -> Any:
+    """
+    Examples:
+    >>> type_simplify(list[str])
+    <class 'list'>
+    >>> type_simplify(float | list[str])
+    (<class 'float'>, <class 'list'>)
+    """
+    origin = type_origin(t)
+    if type(origin) is types.NoneType or origin is None:
+        return t
+
+    if is_union_type(t):
+        args = type_args(t)
+        return tuple([type_simplify(i) for i in args])
+
+    return origin
+
+
+__all__ = [
+    "is_alias_type",
+    "is_union_type",
+    "is_iterable_type",
+    "is_mapping_type",
+    "type_to_str",
+    "type_origin",
+    "type_args",
+    "type_simplify",
+]
