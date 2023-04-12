@@ -16,7 +16,7 @@ setup(
     author_email="ziga.ivansek@gmail.com",
     url="https://github.com/zigai/strto",
     python_requires=">=3.10",
-    license="",
+    license="MIT",
     classifiers=[
         "Programming Language :: Python",
         "Programming Language :: Python :: 3.10",

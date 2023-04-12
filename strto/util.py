@@ -1,5 +1,7 @@
 import types
 import typing
+from collections.abc import Iterable, Mapping
+from typing import Any
 
 ALIAS_TYPES = [typing._SpecialGenericAlias, types.GenericAlias]  # type:ignore
 UNION_TYPES = [typing._UnionGenericAlias, types.UnionType]  # type:ignore
@@ -13,6 +15,18 @@ def is_union_type(t) -> bool:
     return type(t) in UNION_TYPES
 
 
+def is_iterable_type(t) -> bool:
+    if is_alias_type(t):
+        t = type_origin(t)
+    return issubclass(t, Iterable)
+
+
+def is_mapping_type(t) -> bool:
+    if is_alias_type(t):
+        t = type_origin(t)
+    return issubclass(t, Mapping)
+
+
 def type_to_str(t) -> str:
     """
     Convert a Python type to its string representation.
@@ -24,7 +38,6 @@ def type_to_str(t) -> str:
         str: The string representation of the Python type.
 
     Examples:
-        >>> from objinspect import util
         >>> type_to_str(union_parameter.UnionParameter)
         'UnionParameter'
         >>> type_to_str(int)
@@ -34,3 +47,31 @@ def type_to_str(t) -> str:
     if "<class '" in type_str:
         type_str = type_str.split("'")[1]
     return type_str.split(".")[-1]
+
+
+def type_origin(t: Any) -> Any:
+    """
+    typing.get_origin wrapper
+
+    Example:
+        >>> type_args(list[list[str]])
+        <class 'list'>
+        >>> type_origin(float | int)
+        <class 'types.UnionType'>
+    """
+    return typing.get_origin(t)
+
+
+def type_args(t: Any) -> tuple[Any, ...]:
+    """
+    typing.get_args wrapper
+
+    Example:
+        >>> type_args(list[str])
+        (<class 'str'>,)
+        >>> type_args(dict[str, int])
+        (<class 'str'>, <class 'int'>)
+        >>> type_args(list[list[str]])
+        (list[str],)
+    """
+    return typing.get_args(t)

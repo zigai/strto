@@ -1,8 +1,12 @@
+import datetime
 import json
 import os
 from typing import Any, Iterable, Mapping
 
+from stdl import dt
 from stdl.fs import File, json_load, yaml_load
+
+from strto.constants import ITER_SEP, SLICE_SEP
 
 
 class Converter:
@@ -14,7 +18,9 @@ class Converter:
         return self.convert(value)
 
     def clean(self, value) -> str:
-        return value.strip()
+        if isinstance(value, str):
+            return value.strip()
+        return value
 
     def convert(self, value: str) -> Any:
         raise NotImplementedError
@@ -31,7 +37,7 @@ class CastTo(Converter):
 
 
 class IterableConverter(Converter):
-    def __init__(self, t: type = None, sep: str = ",", from_file: bool = False):  # type: ignore
+    def __init__(self, t: type = None, sep: str = ITER_SEP, from_file: bool = False):  # type: ignore
         self.sep = sep
         self.from_file = from_file
         self.t = t
@@ -59,7 +65,7 @@ class IterableConverter(Converter):
 
 
 class MappingConverter(IterableConverter):
-    def __init__(self, t: type = None, sep: str = ",", from_file: bool = False):  # type: ignore
+    def __init__(self, t: type = None, sep: str = ITER_SEP, from_file: bool = False):  # type: ignore
         self.sep = sep
         self.from_file = from_file
         self.t = t
@@ -79,3 +85,51 @@ class MappingConverter(IterableConverter):
         if value.endswith((".yaml", ".yml")):
             return yaml_load(value)  # type:ignore
         return json_load(value)  # type:ignore
+
+
+class DateTimeConverter(Converter):
+    def convert(self, value) -> datetime.datetime:
+        return dt.parse_datetime_str(value)
+
+
+class DateConverter(Converter):
+    def convert(self, value) -> datetime.date:
+        return dt.parse_datetime_str(value).date()
+
+
+class SliceConverter(Converter):
+    def __init__(self, sep: str = SLICE_SEP):
+        self.sep = sep
+
+    def convert(self, value: str) -> slice:
+        if isinstance(value, slice):
+            return value
+        nums = [float(i) if i else None for i in value.split(self.sep)]
+        if not len(nums) in (1, 2, 3):
+            raise ValueError(f"Slice arg must be 1-3 values separated by {self.sep}")
+        return slice(*nums)
+
+
+class RangeConverter(Converter):
+    def __init__(self, sep: str = SLICE_SEP):
+        self.sep = sep
+
+    def convert(self, value: str) -> range:
+        if isinstance(value, range):
+            return value
+        nums = [int(i) for i in value.split(self.sep) if i]
+        if not len(nums) in (1, 2, 3):
+            raise ValueError(f"Range arg must be 1-3 values separated by {self.sep}")
+        return range(*nums)
+
+
+__all__ = [
+    "CastTo",
+    "Converter",
+    "DateConverter",
+    "DateTimeConverter",
+    "IterableConverter",
+    "MappingConverter",
+    "RangeConverter",
+    "SliceConverter",
+]
