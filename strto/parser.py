@@ -78,7 +78,7 @@ class Parser:
 
     def parse_special(self, value: str, t: Any) -> Any:
         """
-        Currently only supports:
+        Currently supports:
         - enum.Enum
 
         """

@@ -8,20 +8,32 @@ UNION_TYPES = [typing._UnionGenericAlias, types.UnionType]  # type:ignore
 
 
 def is_alias_type(t) -> bool:
+    """
+    Check if a type is an alias type (list[str], dict[str, int], etc...])
+    """
     return type(t) in ALIAS_TYPES
 
 
 def is_union_type(t) -> bool:
+    """
+    Check if a type is a union type (float | int, str | None, etc...)
+    """
     return type(t) in UNION_TYPES
 
 
 def is_iterable_type(t) -> bool:
+    """
+    Check if a type is an iterable type (list, tuple, etc...)
+    """
     if is_alias_type(t):
         t = type_origin(t)
     return issubclass(t, Iterable)
 
 
 def is_mapping_type(t) -> bool:
+    """
+    Check if a type is a mapping type (dict, defaultdict, etc...)
+    """
     if is_alias_type(t):
         t = type_origin(t)
     return issubclass(t, Mapping)
