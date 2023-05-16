@@ -10,6 +10,10 @@ from strto.constants import ITER_SEP, SLICE_SEP
 
 
 class Converter:
+    """
+    Base class for all converters.
+    """
+
     def __init__(self):
         pass
 
@@ -27,6 +31,10 @@ class Converter:
 
 
 class CastTo(Converter):
+    """
+    Cast a value to a type.
+    """
+
     def __init__(self, t: type):
         self.t = t
 
@@ -37,6 +45,15 @@ class CastTo(Converter):
 
 
 class IterableConverter(Converter):
+    """
+    Convert a value to an iterable.
+
+    Args:
+        t (type): The type to of the iterable. Defaults to list.
+        sep (str): The separator to split the value by.
+        from_file (bool): Whether to allow the value to be a readable from a file.
+    """
+
     def __init__(self, t: type = None, sep: str = ITER_SEP, from_file: bool = False):  # type: ignore
         self.sep = sep
         self.from_file = from_file
@@ -65,6 +82,15 @@ class IterableConverter(Converter):
 
 
 class MappingConverter(IterableConverter):
+    """
+    Convert a value to a mapping.
+
+    Args:
+        t (type): The type to cast mapping values to.
+        sep (str): The separator to split the value by.
+        from_file (bool): Whether to allow the value to be a readable from a file.
+    """
+
     def __init__(self, t: type = None, sep: str = ITER_SEP, from_file: bool = False):  # type: ignore
         self.sep = sep
         self.from_file = from_file
