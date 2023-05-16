@@ -24,7 +24,6 @@ def test_simple_types(parser):
 
 
 def test_iter_alias_simple(parser):
-
     assert parser.parse("1,2,3,4,5", list[int]) == [1, 2, 3, 4, 5]
     assert parser.parse("1,2,3,4,5", list[float]) == [1.0, 2.0, 3.0, 4.0, 5.0]
     assert parser.parse("1,2,3,4,5", list[str]) == ["1", "2", "3", "4", "5"]
