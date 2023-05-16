@@ -4,7 +4,16 @@ import json
 from typing import Any
 
 from strto.constants import ITER_SEP
-from strto.converters import *
+from strto.converters import (
+    CastTo,
+    Converter,
+    DateConverter,
+    DateTimeConverter,
+    IterableConverter,
+    MappingConverter,
+    RangeConverter,
+    SliceConverter,
+)
 from strto.util import (
     is_alias_type,
     is_iterable_type,
@@ -94,7 +103,6 @@ def get_parser(from_file=True) -> Parser:
     import fractions
     import pathlib
     from collections import ChainMap, Counter, OrderedDict, defaultdict, deque
-    from typing import Any
 
     DIRECTLY_CASTABLE_TYPES = [
         bool,

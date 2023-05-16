@@ -98,7 +98,7 @@ def type_simplify(t: Any) -> Any:
     (<class 'float'>, <class 'list'>)
     """
     origin = type_origin(t)
-    if type(origin) is types.NoneType or origin is None:
+    if isinstance(type(origin), types.NoneType) or origin is None:
         return t
 
     if is_union_type(t):

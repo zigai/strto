@@ -131,7 +131,7 @@ class SliceConverter(Converter):
         if isinstance(value, slice):
             return value
         nums = [float(i) if i else None for i in value.split(self.sep)]
-        if not len(nums) in (1, 2, 3):
+        if len(nums) not in (1, 2, 3):
             raise ValueError(f"Slice arg must be 1-3 values separated by {self.sep}")
         return slice(*nums)
 
@@ -144,7 +144,7 @@ class RangeConverter(Converter):
         if isinstance(value, range):
             return value
         nums = [int(i) for i in value.split(self.sep) if i]
-        if not len(nums) in (1, 2, 3):
+        if len(nums) not in (1, 2, 3):
             raise ValueError(f"Range arg must be 1-3 values separated by {self.sep}")
         return range(*nums)
 
