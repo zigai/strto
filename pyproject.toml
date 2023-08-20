@@ -1,6 +1,6 @@
 [project]
 name = "strto"
-version = "0.1.0"
+version = "0.1.1"
 description = "string to object"
 authors = [{ name = "Žiga Ivanšek", email = "ziga.ivansek@gmail.com" }]
 license = { file = "LICENSE.txt" }
@@ -26,7 +26,7 @@ keywords = [
     "python type hint parser",
 ]
 
-dependencies = ["stdl>=0.4.4"]
+dependencies = ["stdl>=0.4.6"]
 
 [project.optional-dependencies]
 test = ["pytest"]
