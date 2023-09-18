@@ -1,7 +1,8 @@
 import enum
 import inspect
 import json
-from typing import Any
+from functools import partial, partialmethod
+from typing import Any, Callable
 
 from strto.constants import ITER_SEP
 from strto.converters import (
@@ -53,6 +54,9 @@ class Parser:
         if value is None:
             return None
         return self.parse_special(value, t)
+
+    def get_parse_fn(self, t: Any) -> Callable[[str], Any]:
+        return partial(self.parse, t=t)
 
     def parse_alias(self, value: str, t: Any):
         """

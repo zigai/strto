@@ -1,6 +1,6 @@
 [project]
 name = "strto"
-version = "0.1.1"
+version = "0.1.2"
 description = "string to object"
 authors = [{ name = "Žiga Ivanšek", email = "ziga.ivansek@gmail.com" }]
 license = { file = "LICENSE.txt" }
