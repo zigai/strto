@@ -1,7 +1,7 @@
 import enum
 import inspect
 import json
-from functools import partial, partialmethod
+from functools import partial
 from typing import Any, Callable
 
 from strto.constants import ITER_SEP
