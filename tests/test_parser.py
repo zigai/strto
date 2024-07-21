@@ -1,17 +1,19 @@
 import datetime
 import enum
 import fractions
+import json
 import pathlib
+from collections import ChainMap, Counter, OrderedDict, defaultdict, deque
 from fractions import Fraction
 
 import pytest
 
-from strto import StrToTypeParser, get_base_parser
+from strto import StrToTypeParser, get_parser
 
 
 @pytest.fixture
 def parser() -> StrToTypeParser:
-    return get_base_parser(from_file=True)
+    return get_parser(from_file=True)
 
 
 def test_simple_types(parser: StrToTypeParser):
@@ -111,3 +113,15 @@ def test_enum(parser: StrToTypeParser):
     assert parser.parse("A", MyEnum) == MyEnum.A
     with pytest.raises(KeyError):
         parser.parse("D", MyEnum)
+
+
+def test_literal(parser: StrToTypeParser):
+    from typing import Literal
+
+    MyLiteral = Literal[1, 2, 3]
+    assert parser.parse("1", MyLiteral) == 1
+    assert parser.parse("False", Literal[True, False]) == False
+    assert parser.parse(b"bytes", Literal[b"bytes", b"string"]) == b"bytes"
+
+    with pytest.raises(ValueError):
+        parser.parse("4", MyLiteral)

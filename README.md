@@ -19,8 +19,8 @@ pip install git+https://github.com/zigai/strto.git
 
 ## Examples
 ```python
->>> from strto import get_base_parser
->>> parser = get_base_parser()
+>>> from strto import get_parser
+>>> parser = get_parser()
 
 >>> parser.parse("5", int)
 5
@@ -50,7 +50,7 @@ Color.RED
 ### Add custom parser
 ```python
 from dataclasses import dataclass
-from strto import ParserBase
+from strto import ParserBase, get_parser
 
 @dataclass
 class NetworkAddress:
@@ -62,9 +62,21 @@ class NetworkAddressParser(ParserBase):
         host, port = value.rsplit(":")
         return NetworkAddress(host=host, port=int(port))
 
+parser = get_parser()
 parser.add(NetworkAddress, NetworkAddressParser())
 result = parser.parse("example.com:8080", NetworkAddress)
 print(result)  # NetworkAddress(host='example.com', port=8080)
+
+# You can also use a function
+def parse_network_address(value: str) -> NetworkAddress:
+    host, port = value.rsplit(":")
+    return NetworkAddress(host=host, port=int(port))
+
+parser = get_parser()
+parser.add(NetworkAddress, parse_network_address)
+result = parser.parse("example.com:8080", NetworkAddress)
+print(result)  # NetworkAddress(host='example.com', port=8080)
+
 ```
 
 ## License

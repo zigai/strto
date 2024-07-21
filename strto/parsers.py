@@ -9,9 +9,9 @@ from stdl.fs import File, json_load, yaml_load
 from strto.constants import FROM_FILE_PREFIX, ITER_SEP, SLICE_SEP
 
 
-class ParserBase(T.Protocol):
+class Parser(T.Protocol):
     """
-    Base class for all converters.
+    Base class for all parsers.
     """
 
     def __call__(self, value: str) -> T.Any:
@@ -27,7 +27,7 @@ class ParserBase(T.Protocol):
         raise NotImplementedError
 
 
-class Cast(ParserBase):
+class Cast(Parser):
     """Cast a value to a type."""
 
     def __init__(self, t: type):
@@ -39,20 +39,20 @@ class Cast(ParserBase):
         return self.t(value)
 
 
-class IterableParser(ParserBase):
+class IterableParser(Parser):
     """
     Convert a value to an iterable.
 
     Args:
-        iter_t (type): The type to of the iterable. Defaults to list.
+        t (type): The type to of the iterable. Defaults to list.
         sep (str): The separator to split the value by.
         from_file (bool): Whether to allow the value to be a readable from a file.
     """
 
-    def __init__(self, iter_t: type = None, sep: str = ITER_SEP, from_file: bool = False):  # type: ignore
+    def __init__(self, t: type = None, sep: str = ITER_SEP, from_file: bool = False):  # type: ignore
+        self.t = t
         self.sep = sep
         self.from_file = from_file
-        self.iter_t = iter_t
 
     def parse(self, value) -> T.Iterable:
         if isinstance(value, str):
@@ -68,8 +68,8 @@ class IterableParser(ParserBase):
             value = [i.split(self.sep) for i in value]
         else:
             raise TypeError(f"Cannot convert '{value}' to an iterable")
-        if self.iter_t is not None:
-            return self.iter_t(value)  # type: ignore
+        if self.t is not None:
+            return self.t(value)  # type: ignore
         return value
 
     def read_from_file(self, value: str):
@@ -84,15 +84,20 @@ class MappingParser(IterableParser):
     Convert a value to a mapping.
 
     Args:
-        mapping_t (type): The type to cast mapping values to.
+        t (type): The type to cast mapping values to.
         sep (str): The separator to split the value by.
         from_file (bool): Whether to allow the value to be a readable from a file.
     """
 
-    def __init__(self, mapping_t: type = None, sep: str = ITER_SEP, from_file: bool = False):  # type: ignore
-        self.sep = sep
-        self.from_file = from_file
-        self.mapping_t = mapping_t
+    def __init__(
+        self,
+        t: type = None,
+        mode: T.Literal["cast", "unpack"] = "cast",
+        sep: str = ITER_SEP,
+        from_file: bool = False,
+    ):
+        super().__init__(t, sep, from_file)
+        self.mode = mode
 
     def parse(self, value) -> T.Mapping:
         if isinstance(value, str):
@@ -104,8 +109,13 @@ class MappingParser(IterableParser):
                     raise FileNotFoundError(value)
             else:
                 value = json.loads(value)
-            if self.mapping_t is not None:
-                return self.mapping_t(value)  # type: ignore
+            if self.t is not None:
+                if self.mode == "cast":
+                    return self.t(value)
+                elif self.mode == "unpack":
+                    return self.t(**value)  # type: ignore
+                else:
+                    raise ValueError(f"Invalid mode: {self.mode}")
             return value
         raise TypeError(f"Cannot convert '{value}' to a mapping")
 
@@ -115,43 +125,44 @@ class MappingParser(IterableParser):
         return json_load(value)  # type:ignore
 
 
-class DatetimeParser(ParserBase):
+class DatetimeParser(Parser):
     def parse(self, value) -> datetime.datetime:
         return dt.parse_datetime_str(value)
 
 
-class DateParser(ParserBase):
+class DateParser(Parser):
     def parse(self, value) -> datetime.date:
         return dt.parse_datetime_str(value).date()
 
 
-class SliceParser(ParserBase):
+class SliceParser(Parser):
+    t = slice
+
     def __init__(self, sep: str = SLICE_SEP):
         self.sep = sep
 
-    def parse(self, value: str) -> slice:
-        if isinstance(value, slice):
+    def _get_nums(self, value: str):
+        return [float(i) if i else None for i in value.split(self.sep)]
+
+    def parse(self, value: str):
+        if isinstance(value, self.t):
             return value
-        nums = [float(i) if i else None for i in value.split(self.sep)]
+        nums = self._get_nums(value)
         if len(nums) not in (1, 2, 3):
-            raise ValueError(f"Slice argument must be 1-3 values separated by '{self.sep}'")
-        return slice(*nums)
+            raise ValueError(
+                f"{self.t.__name__} argument must be 1-3 values separated by '{self.sep}'"
+            )
+        return self.t(*nums)
 
 
-class RangeParser(ParserBase):
-    def __init__(self, sep: str = SLICE_SEP):
-        self.sep = sep
+class RangeParser(SliceParser):
+    t = range
 
-    def parse(self, value: str) -> range:
-        if isinstance(value, range):
-            return value
-        nums = [int(i) for i in value.split(self.sep) if i]
-        if len(nums) not in (1, 2, 3):
-            raise ValueError(f"Range argument must be 1-3 values separated by '{self.sep}'")
-        return range(*nums)
+    def _get_nums(self, value: str):  # type:ignore
+        return [int(i) for i in value.split(self.sep) if i]
 
 
-class IntFloatParser(ParserBase):
+class IntFloatParser(Parser):
     def parse(self, value: str) -> int | float:
         value = self.clean(value)
         if isinstance(value, (int, float)):
@@ -161,7 +172,7 @@ class IntFloatParser(ParserBase):
         return int(value)
 
 
-class BoolParser(ParserBase):
+class BoolParser(Parser):
     def parse(self, value: str) -> bool:
         if isinstance(value, bool):
             return value
@@ -179,7 +190,7 @@ class BoolParser(ParserBase):
 
 __all__ = [
     "Cast",
-    "ParserBase",
+    "Parser",
     "DateParser",
     "DatetimeParser",
     "IterableParser",
