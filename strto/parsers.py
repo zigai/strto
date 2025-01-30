@@ -1,7 +1,7 @@
 import datetime
 import json
 import os
-import typing as T
+from typing import Any, Iterable, Protocol, Type
 
 from stdl import dt
 from stdl.fs import File, json_load, yaml_load
@@ -9,12 +9,12 @@ from stdl.fs import File, json_load, yaml_load
 from strto.constants import FROM_FILE_PREFIX, ITER_SEP, SLICE_SEP
 
 
-class Parser(T.Protocol):
+class Parser(Protocol):
     """
     Base class for all parsers.
     """
 
-    def __call__(self, value: str) -> T.Any:
+    def __call__(self, value: str) -> Any:
         value = self.clean(value)
         return self.parse(value)
 
@@ -23,7 +23,7 @@ class Parser(T.Protocol):
             return value.strip()
         return value
 
-    def parse(self, value: str) -> T.Any:
+    def parse(self, value: str) -> Any:
         raise NotImplementedError
 
 
@@ -33,7 +33,7 @@ class Cast(Parser):
     def __init__(self, t: type):
         self.t = t
 
-    def parse(self, value) -> T.Any:
+    def parse(self, value) -> Any:
         if isinstance(value, self.t):
             return value
         return self.t(value)
@@ -49,12 +49,12 @@ class IterableParser(Parser):
         from_file (bool): Whether to allow the value to be a readable from a file.
     """
 
-    def __init__(self, t: type = None, sep: str = ITER_SEP, from_file: bool = False):  # type: ignore
+    def __init__(self, t: Type = None, sep: str = ITER_SEP, from_file: bool = False):  # type: ignore
         self.t = t
         self.sep = sep
         self.from_file = from_file
 
-    def parse(self, value) -> T.Iterable:
+    def parse(self, value) -> Iterable:
         if isinstance(value, str):
             if self.from_file and value.startswith(FROM_FILE_PREFIX):
                 filepath = value[len(FROM_FILE_PREFIX) :]
@@ -64,7 +64,7 @@ class IterableParser(Parser):
                     raise FileNotFoundError(value)
             else:
                 value = [i.strip() for i in value.split(self.sep)]
-        elif isinstance(value, T.Iterable):
+        elif isinstance(value, Iterable):
             value = [i.split(self.sep) for i in value]
         else:
             raise TypeError(f"Cannot convert '{value}' to an iterable")

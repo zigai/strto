@@ -1,8 +1,8 @@
 import enum
 import inspect
 import json
-import typing as T
 from functools import partial
+from typing import Any, Callable, Type, Union
 
 from objinspect.typing import (
     get_literal_choices,
@@ -22,29 +22,29 @@ from strto.parsers import Parser
 class StrToTypeParser:
     def __init__(
         self,
-        parsers: dict[T.Any, Parser | T.Callable[[str], T.Any]] | None = None,
+        parsers: dict[Any, Parser | Callable[[str], Any]] | None = None,
     ) -> None:
-        self.parsers: dict[T.Any, Parser | T.Callable[[str], T.Any]] = parsers or {}
+        self.parsers: dict[Any, Parser | Callable[[str], Any]] = parsers or {}
 
     def __len__(self):
         return len(self.parsers)
 
-    def __getitem__(self, t: T.Any):
+    def __getitem__(self, t: Type):
         return self.get(t)
 
-    def add(self, t: T.Any, parser: Parser | T.Callable[[str], T.Any]):
+    def add(self, t: Type, parser: Parser | Callable[[str], Any]):
         self.parsers[t] = parser
 
-    def extend(self, parsers: dict[T.Any, Parser | T.Callable[[str], T.Any]]):
+    def extend(self, parsers: dict[Any, Parser | Callable[[str], Any]]):
         self.parsers.update(parsers)
 
-    def get(self, t: T.Any) -> Parser | T.Callable[[str], T.Any]:
+    def get(self, t: Type) -> Parser | Callable[[str], Any]:
         return self.parsers[t]
 
-    def get_parse_func(self, t: T.Any) -> T.Callable[[str], T.Any]:
+    def get_parse_func(self, t: Type) -> Callable[[str], Any]:
         return partial(self.parse, t=t)
 
-    def parse(self, value: str, t: T.Any) -> T.Any:
+    def parse(self, value: str, t: Type) -> Any:
         if parser := self.parsers.get(t, None):
             return parser(value)
         if is_generic_alias(t):
@@ -55,7 +55,7 @@ class StrToTypeParser:
             return None
         return self._parse_special(value, t)
 
-    def _parse_alias(self, value: str, t: T.Any):
+    def _parse_alias(self, value: str, t: Type):
         base_t = type_origin(t)
         sub_t = type_args(t)
 
@@ -72,7 +72,7 @@ class StrToTypeParser:
 
         raise NotImplementedError
 
-    def _parse_union(self, value: str, t: T.Any) -> T.Any:
+    def _parse_union(self, value: str, t: Type) -> Any:
         for t in type_args(t):
             try:
                 return self.parse(value, t)
@@ -80,7 +80,7 @@ class StrToTypeParser:
                 continue
         raise ValueError(f"Could not parse '{value}' as '{t}'")
 
-    def _parse_special(self, value: str, t: T.Any) -> T.Any:
+    def _parse_special(self, value: str, t: Type) -> Any:
         """
         Parse enum or literal
         """
@@ -174,8 +174,8 @@ def get_parser(from_file: bool = True) -> StrToTypeParser:
             datetime.date: DateParser(),
             int | float: int_float_parser,
             float | int: int_float_parser,
-            T.Union[float, int]: int_float_parser,
-            T.Union[int, float]: int_float_parser,
+            Union[float, int]: int_float_parser,
+            Union[int, float]: int_float_parser,
         }
     )
     return parser
