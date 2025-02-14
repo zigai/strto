@@ -1,6 +1,6 @@
 [project]
 name = "strto"
-version = "0.1.8"
+version = "0.1.9"
 description = "Type-guided parsing library for converting strings to Python objects"
 authors = [{ name = "Žiga Ivanšek", email = "ziga.ivansek@gmail.com" }]
 license = { file = "LICENSE" }
@@ -29,7 +29,7 @@ keywords = [
     "string parsing",
 ]
 
-dependencies = ["stdl>=0.6.0", "objinspect>=0.2.14"]
+dependencies = ["stdl>=0.6.1", "objinspect>=0.2.15"]
 
 [project.optional-dependencies]
 test = ["pytest"]

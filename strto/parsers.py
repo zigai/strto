@@ -1,7 +1,7 @@
 import datetime
 import json
 import os
-from typing import Any, Iterable, Protocol, Type
+from typing import Any, Iterable, Literal, Mapping, Protocol, Type
 
 from stdl import dt
 from stdl.fs import File, json_load, yaml_load
@@ -30,7 +30,7 @@ class Parser(Protocol):
 class Cast(Parser):
     """Cast a value to a type."""
 
-    def __init__(self, t: type):
+    def __init__(self, t: Type):
         self.t = t
 
     def parse(self, value) -> Any:
@@ -91,15 +91,15 @@ class MappingParser(IterableParser):
 
     def __init__(
         self,
-        t: type = None,
-        mode: T.Literal["cast", "unpack"] = "cast",
+        t: Type | None = None,
+        mode: Literal["cast", "unpack"] = "cast",
         sep: str = ITER_SEP,
         from_file: bool = False,
     ):
         super().__init__(t, sep, from_file)
         self.mode = mode
 
-    def parse(self, value) -> T.Mapping:
+    def parse(self, value) -> Mapping:
         if isinstance(value, str):
             if self.from_file and value.startswith(FROM_FILE_PREFIX):
                 filepath = value[len(FROM_FILE_PREFIX) :]
@@ -119,7 +119,7 @@ class MappingParser(IterableParser):
             return value
         raise TypeError(f"Cannot convert '{value}' to a mapping")
 
-    def read_from_file(self, value: str) -> T.Mapping:  # type:ignore
+    def read_from_file(self, value: str) -> Mapping:  # type:ignore
         if value.endswith((".yaml", ".yml")):
             return yaml_load(value)  # type:ignore
         return json_load(value)  # type:ignore
