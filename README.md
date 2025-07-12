@@ -1,4 +1,5 @@
 # strto
+
 [![Tests](https://github.com/zigai/strto/actions/workflows/tests.yml/badge.svg)](https://github.com/zigai/strto/actions/workflows/tests.yml)
 [![PyPI version](https://badge.fury.io/py/strto.svg)](https://badge.fury.io/py/strto)
 ![Supported versions](https://img.shields.io/badge/python-3.10+-blue.svg)
@@ -8,16 +9,21 @@
 `strto` is a Python library for parsing strings into Python objects based on types and type annotations.
 
 ## Installation
+
 #### From PyPi
+
 ```
 pip install strto
 ```
+
 #### From source
+
 ```
 pip install git+https://github.com/zigai/strto.git
 ```
 
 ## Examples
+
 ```python
 >>> from strto import get_parser
 >>> parser = get_parser()
@@ -47,7 +53,9 @@ range(0, 5, 1)
 Color.RED
 
 ```
+
 ### Add custom parser
+
 ```python
 from dataclasses import dataclass
 from strto import ParserBase, get_parser
@@ -80,4 +88,5 @@ print(result)  # NetworkAddress(host='example.com', port=8080)
 ```
 
 ## License
+
 [MIT License](https://github.com/zigai/strto/blob/master/LICENSE)

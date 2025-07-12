@@ -10,9 +10,7 @@ from strto.constants import FROM_FILE_PREFIX, ITER_SEP, SLICE_SEP
 
 
 class Parser(Protocol):
-    """
-    Base class for all parsers.
-    """
+    """Base class for all parsers"""
 
     def __call__(self, value: str) -> Any:
         value = self.clean(value)
@@ -49,7 +47,7 @@ class IterableParser(Parser):
         from_file (bool): Whether to allow the value to be a readable from a file.
     """
 
-    def __init__(self, t: Type = None, sep: str = ITER_SEP, from_file: bool = False):  # type: ignore
+    def __init__(self, t: type = None, sep: str = ITER_SEP, from_file: bool = False):  # type: ignore
         self.t = t
         self.sep = sep
         self.from_file = from_file
