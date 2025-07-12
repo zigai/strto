@@ -3,7 +3,7 @@ import inspect
 import json
 from collections.abc import Callable
 from functools import partial
-from typing import Any, Type, Union
+from typing import Any, Union
 
 from objinspect.typing import (
     get_literal_choices,
@@ -74,9 +74,9 @@ class StrToTypeParser:
         raise NotImplementedError
 
     def _parse_union(self, value: str, t: type) -> Any:
-        for t in type_args(t):
+        for i in type_args(t):
             try:
-                return self.parse(value, t)
+                return self.parse(value, i)
             except Exception:
                 continue
         raise ValueError(f"Could not parse '{value}' as '{t}'")

@@ -93,11 +93,6 @@ select = [
     "RUF032",
     "RUF033",
     "RUF034",
-    "RUF040",
-    "RUF046",
-    "RUF049",
-    "RUF051",
-    "RUF056",
     "TRY002",
     "TRY004",
     "TRY201",
@@ -108,13 +103,13 @@ select = [
     "RET503",
     "LOG001",
     "LOG002",
-    "LOG004",
 ]
 ignore = [
     "D100",
     "D101",
     "D102",
     "D103",
+    "D104",
     'D105',
     'D107',
     'D205',
@@ -155,10 +150,11 @@ exclude = [
     "dist",
     "node_modules",
     "venv",
-    "tests",
+    "tests/*",
+    "tests/**/2",
 ]
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "__init__.py" = [
     "F401", # Unused import
     "E402", # Module import not at top of file
