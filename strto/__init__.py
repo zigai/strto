@@ -1,8 +1,9 @@
 import enum
 import inspect
 import json
+from collections.abc import Callable
 from functools import partial
-from typing import Any, Callable, Type, Union
+from typing import Any, Type, Union
 
 from objinspect.typing import (
     get_literal_choices,
@@ -29,22 +30,22 @@ class StrToTypeParser:
     def __len__(self):
         return len(self.parsers)
 
-    def __getitem__(self, t: Type):
+    def __getitem__(self, t: type):
         return self.get(t)
 
-    def add(self, t: Type, parser: Parser | Callable[[str], Any]):
+    def add(self, t: type, parser: Parser | Callable[[str], Any]):
         self.parsers[t] = parser
 
     def extend(self, parsers: dict[Any, Parser | Callable[[str], Any]]):
         self.parsers.update(parsers)
 
-    def get(self, t: Type) -> Parser | Callable[[str], Any]:
+    def get(self, t: type) -> Parser | Callable[[str], Any]:
         return self.parsers[t]
 
-    def get_parse_func(self, t: Type) -> Callable[[str], Any]:
+    def get_parse_func(self, t: type) -> Callable[[str], Any]:
         return partial(self.parse, t=t)
 
-    def parse(self, value: str, t: Type) -> Any:
+    def parse(self, value: str, t: type) -> Any:
         if parser := self.parsers.get(t, None):
             return parser(value)
         if is_generic_alias(t):
@@ -55,7 +56,7 @@ class StrToTypeParser:
             return None
         return self._parse_special(value, t)
 
-    def _parse_alias(self, value: str, t: Type):
+    def _parse_alias(self, value: str, t: type):
         base_t = type_origin(t)
         sub_t = type_args(t)
 
@@ -72,7 +73,7 @@ class StrToTypeParser:
 
         raise NotImplementedError
 
-    def _parse_union(self, value: str, t: Type) -> Any:
+    def _parse_union(self, value: str, t: type) -> Any:
         for t in type_args(t):
             try:
                 return self.parse(value, t)
@@ -80,10 +81,8 @@ class StrToTypeParser:
                 continue
         raise ValueError(f"Could not parse '{value}' as '{t}'")
 
-    def _parse_special(self, value: str, t: Type) -> Any:
-        """
-        Parse enum or literal
-        """
+    def _parse_special(self, value: str, t: type) -> Any:
+        """Parse enum or literal"""
         if inspect.isclass(t):
             if issubclass(t, enum.Enum):
                 return t[value]

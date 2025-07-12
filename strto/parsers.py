@@ -1,7 +1,8 @@
 import datetime
 import json
 import os
-from typing import Any, Iterable, Literal, Mapping, Protocol, Type
+from collections.abc import Iterable, Mapping
+from typing import Any, Literal, Protocol
 
 from stdl import dt
 from stdl.fs import File, json_load, yaml_load
@@ -28,7 +29,7 @@ class Parser(Protocol):
 class Cast(Parser):
     """Cast a value to a type."""
 
-    def __init__(self, t: Type):
+    def __init__(self, t: type):
         self.t = t
 
     def parse(self, value) -> Any:
@@ -47,7 +48,7 @@ class IterableParser(Parser):
         from_file (bool): Whether to allow the value to be a readable from a file.
     """
 
-    def __init__(self, t: type = None, sep: str = ITER_SEP, from_file: bool = False):  # type: ignore
+    def __init__(self, t: type | None = None, sep: str = ITER_SEP, from_file: bool = False):  # type: ignore
         self.t = t
         self.sep = sep
         self.from_file = from_file
@@ -89,7 +90,7 @@ class MappingParser(IterableParser):
 
     def __init__(
         self,
-        t: Type | None = None,
+        t: type | None = None,
         mode: Literal["cast", "unpack"] = "cast",
         sep: str = ITER_SEP,
         from_file: bool = False,

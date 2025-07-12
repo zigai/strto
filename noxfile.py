@@ -28,6 +28,7 @@ def get_python_versions() -> list[str]:
 PYTHON_VERSIONS = get_python_versions()
 nox.options.default_venv_backend = "uv|virtualenv"
 
+
 @nox.session(python=PYTHON_VERSIONS)
 def tests(session):
     """Run tests with pytest for all supported Python versions."""
