@@ -12,13 +12,13 @@
 
 #### From PyPi
 
-```
+```sh
 pip install strto
 ```
 
 #### From source
 
-```
+```sh
 pip install git+https://github.com/zigai/strto.git
 ```
 
