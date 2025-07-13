@@ -134,3 +134,4 @@ models.json
 *example*.py
 *ruff_cache*
 .vscode
+.idea
