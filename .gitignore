@@ -126,10 +126,9 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-E61*
-1A3*
-models.json
-*example*.py
-*ruff_cache*
+# IDEs
 .vscode
 .idea
+
+*example*.py
+*ruff_cache*
