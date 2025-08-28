@@ -1,9 +1,10 @@
 import ast
 import datetime
 import json
+import math
 import os
 from collections.abc import Iterable, Mapping
-from typing import Any, Literal, Protocol
+from typing import Any, ClassVar, Literal, Protocol
 
 from stdl import dt
 from stdl.fs import File, json_load, yaml_load
@@ -173,6 +174,9 @@ class IntParser(Parser):
         if isinstance(value, int):
             return value
 
+        if "." in value:
+            raise ValueError(f"Invalid integer value: '{value}' (looks like a float)")
+
         try:
             return int(value)
         except ValueError:
@@ -188,6 +192,7 @@ class IntParser(Parser):
                 raise ValueError(f"Invalid expression: '{value}'")
             except ZeroDivisionError:
                 raise ZeroDivisionError(f"Division by zero in expression: '{value}'")
+
             if isinstance(result, (int, float)):
                 return int(result)
             else:
@@ -238,14 +243,101 @@ class IntParser(Parser):
                 raise TypeError(f"Unsupported node type: {type(node)}")
 
 
-class IntFloatParser(Parser):
-    def parse(self, value: str) -> int | float:
+class FloatParser(Parser):
+    CONSTANTS: ClassVar[dict[str, float]] = {
+        "pi": math.pi,
+        "e": math.e,
+        "tau": math.tau,
+        "phi": (1 + math.sqrt(5)) / 2,
+        "sqrt2": math.sqrt(2),
+        "sqrt3": math.sqrt(3),
+    }
+
+    def __init__(self, allow_expressions: bool = True):
+        self.allow_expressions = allow_expressions
+
+    def parse(self, value: str) -> float:
         value = self.clean(value)
-        if isinstance(value, (int, float)):
+        if isinstance(value, float):
             return value
-        if "e" in value or "." in value:
+        if isinstance(value, int):
             return float(value)
-        return int(value)
+        if isinstance(value, str):
+            if value in self.CONSTANTS:
+                return self.CONSTANTS[value]
+
+        try:
+            return float(value)
+        except ValueError:
+            pass
+
+        if self.allow_expressions:
+            value = value.replace("^", "**")
+
+            try:
+                node = ast.parse(value, mode="eval")
+                result = self._eval_node(node.body)
+            except (SyntaxError, TypeError, NameError):
+                raise ValueError(f"Invalid expression: '{value}'")
+            except ZeroDivisionError:
+                raise ZeroDivisionError(f"Division by zero in expression: '{value}'")
+
+            if isinstance(result, (int, float)):
+                return float(result)
+            else:
+                raise TypeError(f"Expression '{value}' does not evaluate to a number")
+        else:
+            raise ValueError(f"Invalid float value: '{value}'")
+
+    def _eval_node(self, node: ast.expr) -> float:
+        """Safely evaluate an AST node with limited operations."""
+        match node:
+            case ast.Constant():
+                if isinstance(node.value, (int, float)):
+                    return float(node.value)
+                elif isinstance(node.value, str):
+                    if node.value in self.CONSTANTS:
+                        return self.CONSTANTS[node.value]
+                    else:
+                        raise TypeError(f"Unsupported constant: '{node.value}'")
+                else:
+                    raise TypeError(f"Unsupported constant type: {type(node.value)}")
+            case ast.Name():
+                if node.id in self.CONSTANTS:
+                    return self.CONSTANTS[node.id]
+                else:
+                    raise NameError(f"Undefined name: '{node.id}'")
+            case ast.BinOp():
+                left = self._eval_node(node.left)
+                right = self._eval_node(node.right)
+                match node.op:
+                    case ast.Add():
+                        return left + right
+                    case ast.Sub():
+                        return left - right
+                    case ast.Mult():
+                        return left * right
+                    case ast.Div():
+                        return left / right
+                    case ast.FloorDiv():
+                        return left // right
+                    case ast.Mod():
+                        return left % right
+                    case ast.Pow():
+                        return left**right
+                    case _:
+                        raise TypeError(f"Unsupported binary operator: {type(node.op)}")
+            case ast.UnaryOp():
+                operand = self._eval_node(node.operand)
+                match node.op:
+                    case ast.UAdd():
+                        return +operand
+                    case ast.USub():
+                        return -operand
+                    case _:
+                        raise TypeError(f"Unsupported unary operator: {type(node.op)}")
+            case _:
+                raise TypeError(f"Unsupported node type: {type(node)}")
 
 
 class BoolParser(Parser):
@@ -269,6 +361,7 @@ __all__ = [
     "Parser",
     "DateParser",
     "DatetimeParser",
+    "FloatParser",
     "IntParser",
     "IterableParser",
     "MappingParser",

@@ -129,7 +129,7 @@ def get_parser(from_file: bool = True) -> StrToTypeParser:
         Cast,
         DateParser,
         DatetimeParser,
-        IntFloatParser,
+        FloatParser,
         IntParser,
         IterableParser,
         MappingParser,
@@ -139,7 +139,6 @@ def get_parser(from_file: bool = True) -> StrToTypeParser:
 
     DIRECTLY_CASTABLE_TYPES = [
         str,
-        float,
         decimal.Decimal,
         fractions.Fraction,
         pathlib.Path,
@@ -164,19 +163,15 @@ def get_parser(from_file: bool = True) -> StrToTypeParser:
     for t in ITERABLE_TYPES:
         parser.add(t, IterableParser(t, from_file=from_file))
 
-    int_float_parser = IntFloatParser()
     parser.extend(
         {
             int: IntParser(),
+            float: FloatParser(),
             bool: BoolParser(),
             range: RangeParser(),
             slice: SliceParser(),
             datetime.datetime: DatetimeParser(),
             datetime.date: DateParser(),
-            int | float: int_float_parser,
-            float | int: int_float_parser,
-            Union[float, int]: int_float_parser,
-            Union[int, float]: int_float_parser,
         }
     )
     return parser

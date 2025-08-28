@@ -1,6 +1,7 @@
 import datetime
 import enum
 import fractions
+import math
 import pathlib
 from fractions import Fraction
 
@@ -74,6 +75,72 @@ class TestInt:
 class TestFloat:
     def test_simple(self, parser: StrToTypeParser):
         assert parser.parse("1.5", float) == 1.5
+
+    def test_exponent_power(self, parser: StrToTypeParser):
+        assert parser.parse("2**4", float) == 16.0
+        assert parser.parse("3**2", float) == 9.0
+
+    def test_scientific_notation(self, parser: StrToTypeParser):
+        assert parser.parse("2e4", float) == 20000.0
+        assert parser.parse("1.5e3", float) == 1500.0
+
+    def test_caret_power(self, parser: StrToTypeParser):
+        assert parser.parse("2^4", float) == 16.0
+        assert parser.parse("3^2", float) == 9.0
+
+    def test_multiplication(self, parser: StrToTypeParser):
+        assert parser.parse("2*4", float) == 8.0
+        assert parser.parse("3.5*2", float) == 7.0
+
+    def test_complex_expression(self, parser: StrToTypeParser):
+        assert parser.parse("2*3**2", float) == 18.0
+        assert parser.parse("2^3*4", float) == 32.0
+
+    def test_negative_numbers(self, parser: StrToTypeParser):
+        assert parser.parse("-5.5", float) == -5.5
+        assert parser.parse("-2**3", float) == -8.0
+
+    def test_subtraction(self, parser: StrToTypeParser):
+        assert parser.parse("10.5-3.2", float) == 7.3
+        assert parser.parse("20-5-2", float) == 13.0
+
+    def test_division(self, parser: StrToTypeParser):
+        assert parser.parse("10/2", float) == 5.0
+        assert parser.parse("20/4", float) == 5.0
+        assert parser.parse("10.0/3.0", float) == 3.3333333333333335
+
+    def test_floor_division(self, parser: StrToTypeParser):
+        assert parser.parse("10//3", float) == 3.0
+        assert parser.parse("17//4", float) == 4.0
+
+    def test_modulo(self, parser: StrToTypeParser):
+        assert parser.parse("10%3", float) == 1.0
+        assert parser.parse("17.5%4", float) == 1.5
+
+    def test_addition(self, parser: StrToTypeParser):
+        assert parser.parse("5.5+3.2", float) == 8.7
+        assert parser.parse("10+5+2", float) == 17.0
+
+    def test_division_by_zero(self, parser: StrToTypeParser):
+        with pytest.raises(ZeroDivisionError):
+            parser.parse("10/0", float)
+        with pytest.raises(ZeroDivisionError):
+            parser.parse("5//0", float)
+        with pytest.raises(ZeroDivisionError):
+            parser.parse("10%0", float)
+
+    def test_constants(self, parser: StrToTypeParser):
+        assert parser.parse("pi", float) == math.pi
+        assert parser.parse("e", float) == math.e
+        assert parser.parse("tau", float) == math.tau
+        assert parser.parse("phi", float) == (1 + math.sqrt(5)) / 2
+        assert parser.parse("sqrt2", float) == math.sqrt(2)
+        assert parser.parse("sqrt3", float) == math.sqrt(3)
+
+    def test_constants_in_expressions(self, parser: StrToTypeParser):
+        assert parser.parse("pi*2", float) == 2 * math.pi
+        assert parser.parse("e+1", float) == math.e + 1
+        assert parser.parse("2*pi", float) == 2 * math.pi
 
 
 class TestFraction:
