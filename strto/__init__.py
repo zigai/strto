@@ -31,16 +31,16 @@ class StrToTypeParser:
     def __len__(self):
         return len(self.parsers)
 
-    def __getitem__(self, t: type[T] | Any) -> Parser | Callable[[str], T]:
+    def __getitem__(self, t: type[T]) -> Parser | Callable[[str], T]:
         return self.get(t)
 
-    def add(self, t: type[T] | Any, parser: Parser | Callable[[str], T]) -> None:
+    def add(self, t: type[T], parser: Parser | Callable[[str], T]) -> None:
         self.parsers[t] = parser
 
-    def extend(self, parsers: dict[Any, Parser | Callable[[str], Any]]) -> None:
+    def extend(self, parsers: dict[type[T], Parser | Callable[[str], T]]) -> None:
         self.parsers.update(parsers)
 
-    def get(self, t: type[T] | Any) -> Parser | Callable[[str], T]:
+    def get(self, t: type[T]) -> Parser | Callable[[str], T]:
         return self.parsers[t]
 
     def get_parse_func(self, t: type[T] | Any) -> Callable[[str], T]:
@@ -57,7 +57,7 @@ class StrToTypeParser:
             return cast(T, None)
         return cast(T, self._parse_special(value, t))
 
-    def _parse_alias(self, value: str, t: type) -> Any:
+    def _parse_alias(self, value: str, t: type[T]) -> T:
         base_t = type_origin(t)
         sub_t = type_args(t)
 
@@ -66,44 +66,44 @@ class StrToTypeParser:
             mapping_instance = base_t()
             for k, v in json.loads(value).items():
                 mapping_instance[self.parse(k, key_type)] = self.parse(v, value_type)
-            return mapping_instance
+            return cast(T, mapping_instance)
 
         elif is_iterable_type(base_t):
             item_t = sub_t[0]
-            return base_t([self.parse(i.strip(), item_t) for i in value.split(ITER_SEP)])
+            return cast(T, base_t([self.parse(i.strip(), item_t) for i in value.split(ITER_SEP)]))
 
         raise NotImplementedError
 
-    def _parse_union(self, value: str, t: type) -> Any:
+    def _parse_union(self, value: str, t: type[T]) -> T:
         for i in type_args(t):
             try:
-                return self.parse(value, i)
+                return cast(T, self.parse(value, i))
             except Exception:
                 continue
         raise ValueError(f"Could not parse '{value}' as '{t}'")
 
-    def _parse_special(self, value: str, t: type) -> Any:
+    def _parse_special(self, value: str, t: type[T]) -> T:
         """Parse enum or literal"""
         if inspect.isclass(t):
             if issubclass(t, enum.Enum):
-                return t[value]
+                return cast(T, t[value])
 
         if is_direct_literal(t):
             choices = get_literal_choices(t)
             if not choices:
                 raise ValueError("Empty literal")
             if value in choices:
-                return value
+                return cast(T, value)
 
             possible_types = [i for i in [int, str, bytes, bool] if i in {type(j) for j in choices}]
-            for t in possible_types:
+            for possible_type in possible_types:
                 try:
-                    if t is bool:
+                    if possible_type is bool:
                         parsed = value.lower() == "true"
                     else:
-                        parsed = t(value)
+                        parsed = possible_type(value)
                     if parsed in choices:
-                        return parsed
+                        return cast(T, parsed)
                 except ValueError:
                     continue
             else:
