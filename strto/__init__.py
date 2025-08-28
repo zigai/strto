@@ -46,6 +46,43 @@ class StrToTypeParser:
     def get_parse_func(self, t: type[T] | Any) -> Callable[[str], T]:
         return partial(self.parse, t=t)
 
+    def is_supported(self, t: type[T] | Any) -> bool:
+        """Check if a type is supported for parsing."""
+        try:
+            if self.parsers.get(t, None):
+                return True
+            if is_generic_alias(t):
+                return self._is_generic_supported(t)
+            if is_union_type(t):
+                return self._is_union_supported(t)
+            if is_direct_literal(t):
+                return True
+            if inspect.isclass(t) and issubclass(t, enum.Enum):
+                return True
+        except Exception:
+            return False
+        else:
+            return False
+
+    def _is_generic_supported(self, t: type[T]) -> bool:
+        base_t = type_origin(t)
+        sub_t = type_args(t)
+
+        if is_mapping_type(base_t):
+            key_type, value_type = sub_t
+            return self.is_supported(key_type) and self.is_supported(value_type)
+        elif is_iterable_type(base_t):
+            item_type = sub_t[0]
+            return self.is_supported(item_type)
+
+        return False
+
+    def _is_union_supported(self, t: type[T]) -> bool:
+        for arg in type_args(t):
+            if self.is_supported(arg):
+                return True
+        return False
+
     def parse(self, value: str, t: type[T] | Any) -> T:
         if parser := self.parsers.get(t, None):
             return cast(T, parser(value))

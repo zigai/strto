@@ -165,136 +165,41 @@ class RangeParser(SliceParser):
         return [int(i) for i in value.split(self.sep) if i]
 
 
-class IntParser(Parser):
-    def __init__(self, allow_expressions: bool = True):
-        self.allow_expressions = allow_expressions
+class NumberParser(Parser):
+    """Base class for numeric parsers."""
 
-    def parse(self, value: str) -> int:
-        value = self.clean(value)
-        if isinstance(value, int):
-            return value
-
-        if "." in value:
-            raise ValueError(f"Invalid integer value: '{value}' (looks like a float)")
-
-        try:
-            return int(value)
-        except ValueError:
-            pass
-
-        if self.allow_expressions:
-            value = value.replace("^", "**")
-
-            try:
-                node = ast.parse(value, mode="eval")
-                result = self._eval_node(node.body)
-            except (SyntaxError, TypeError, NameError):
-                raise ValueError(f"Invalid expression: '{value}'")
-            except ZeroDivisionError:
-                raise ZeroDivisionError(f"Division by zero in expression: '{value}'")
-
-            if isinstance(result, (int, float)):
-                return int(result)
-            else:
-                raise TypeError(f"Expression '{value}' does not evaluate to a number")
-        else:
-            raise ValueError(f"Invalid integer value: '{value}'")
-
-    def _eval_node(self, node: ast.expr) -> int:
-        """Safely evaluate an AST node with limited operations."""
-        match node:
-            case ast.Constant():
-                if isinstance(node.value, int):
-                    return node.value
-                elif isinstance(node.value, float):
-                    return int(node.value)
-                else:
-                    raise TypeError(f"Unsupported constant type: {type(node.value)}")
-            case ast.BinOp():
-                left = self._eval_node(node.left)
-                right = self._eval_node(node.right)
-                match node.op:
-                    case ast.Add():
-                        return left + right
-                    case ast.Sub():
-                        return left - right
-                    case ast.Mult():
-                        return left * right
-                    case ast.Div():
-                        return left // right
-                    case ast.FloorDiv():
-                        return left // right
-                    case ast.Mod():
-                        return left % right
-                    case ast.Pow():
-                        return left**right
-                    case _:
-                        raise TypeError(f"Unsupported binary operator: {type(node.op)}")
-            case ast.UnaryOp():
-                operand = self._eval_node(node.operand)
-                match node.op:
-                    case ast.UAdd():
-                        return +operand
-                    case ast.USub():
-                        return -operand
-                    case _:
-                        raise TypeError(f"Unsupported unary operator: {type(node.op)}")
-            case _:
-                raise TypeError(f"Unsupported node type: {type(node)}")
-
-
-class FloatParser(Parser):
-    CONSTANTS: ClassVar[dict[str, float]] = {
-        "pi": math.pi,
-        "e": math.e,
-        "tau": math.tau,
-        "phi": (1 + math.sqrt(5)) / 2,
-        "sqrt2": math.sqrt(2),
-        "sqrt3": math.sqrt(3),
-    }
+    CONSTANTS: ClassVar[dict[str, float]] = {}
 
     def __init__(self, allow_expressions: bool = True):
         self.allow_expressions = allow_expressions
 
-    def parse(self, value: str) -> float:
+    def parse(self, value: str):
+        """Parse a string into a numeric value. To be implemented by subclasses."""
+        raise NotImplementedError
+
+    def _basic_parse(self, value: str):
         value = self.clean(value)
-        if isinstance(value, float):
-            return value
-        if isinstance(value, int):
-            return float(value)
-        if isinstance(value, str):
-            if value in self.CONSTANTS:
-                return self.CONSTANTS[value]
+
+        if isinstance(value, str) and value in self.CONSTANTS:
+            return self.CONSTANTS[value]
 
         try:
-            return float(value)
+            return self._convert_value(value)
         except ValueError:
             pass
 
-        if self.allow_expressions:
-            value = value.replace("^", "**")
+        return None
 
-            try:
-                node = ast.parse(value, mode="eval")
-                result = self._eval_node(node.body)
-            except (SyntaxError, TypeError, NameError):
-                raise ValueError(f"Invalid expression: '{value}'")
-            except ZeroDivisionError:
-                raise ZeroDivisionError(f"Division by zero in expression: '{value}'")
+    def _convert_value(self, value):
+        """Convert value to the appropriate numeric type. To be implemented by subclasses."""
+        raise NotImplementedError
 
-            if isinstance(result, (int, float)):
-                return float(result)
-            else:
-                raise TypeError(f"Expression '{value}' does not evaluate to a number")
-        else:
-            raise ValueError(f"Invalid float value: '{value}'")
-
-    def _eval_node(self, node: ast.expr) -> float:
+    def _eval_node(self, node: ast.expr):
         """Safely evaluate an AST node with limited operations."""
         match node:
             case ast.Constant():
                 if isinstance(node.value, (int, float)):
-                    return float(node.value)
+                    return self._convert_constant(node.value)
                 elif isinstance(node.value, str):
                     if node.value in self.CONSTANTS:
                         return self.CONSTANTS[node.value]
@@ -310,23 +215,7 @@ class FloatParser(Parser):
             case ast.BinOp():
                 left = self._eval_node(node.left)
                 right = self._eval_node(node.right)
-                match node.op:
-                    case ast.Add():
-                        return left + right
-                    case ast.Sub():
-                        return left - right
-                    case ast.Mult():
-                        return left * right
-                    case ast.Div():
-                        return left / right
-                    case ast.FloorDiv():
-                        return left // right
-                    case ast.Mod():
-                        return left % right
-                    case ast.Pow():
-                        return left**right
-                    case _:
-                        raise TypeError(f"Unsupported binary operator: {type(node.op)}")
+                return self._eval_binop(node.op, left, right)
             case ast.UnaryOp():
                 operand = self._eval_node(node.operand)
                 match node.op:
@@ -338,6 +227,147 @@ class FloatParser(Parser):
                         raise TypeError(f"Unsupported unary operator: {type(node.op)}")
             case _:
                 raise TypeError(f"Unsupported node type: {type(node)}")
+
+    def _convert_constant(self, value):
+        """Convert a constant value. To be implemented by subclasses."""
+        raise NotImplementedError
+
+    def _eval_binop(self, op, left, right):
+        """Evaluate a binary operation. To be implemented by subclasses."""
+        raise NotImplementedError
+
+
+class IntParser(NumberParser):
+    def _basic_parse(self, value: str):
+        """Override to reject float-like strings for union parsing"""
+        value = self.clean(value)
+
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str) and value in self.CONSTANTS:
+            return self.CONSTANTS[value]
+        if "." in value:
+            raise ValueError(f"Invalid integer value: '{value}' (looks like a float)")
+
+        try:
+            return self._convert_value(value)
+        except ValueError:
+            pass
+
+        return None
+
+    def parse(self, value: str) -> int:
+        result = self._basic_parse(value)
+        if result is not None:
+            return self._convert_result(result)
+
+        if self.allow_expressions:
+            value = value.replace("^", "**")
+
+            try:
+                node = ast.parse(value, mode="eval")
+                result = self._eval_node(node.body)
+            except (SyntaxError, TypeError, NameError):
+                raise ValueError(f"Invalid expression: '{value}'")
+            except ZeroDivisionError:
+                raise ZeroDivisionError(f"Division by zero in expression: '{value}'")
+
+            return self._convert_result(result)
+        else:
+            raise ValueError(f"Invalid integer value: '{value}'")
+
+    def _convert_value(self, value):
+        return int(value)
+
+    def _convert_constant(self, value):
+        return int(value)
+
+    def _convert_result(self, result):
+        if isinstance(result, (int, float)):
+            return int(result)
+        else:
+            raise TypeError("Expression does not evaluate to a number")
+
+    def _eval_binop(self, op, left, right):
+        match op:
+            case ast.Add():
+                return left + right
+            case ast.Sub():
+                return left - right
+            case ast.Mult():
+                return left * right
+            case ast.Div():
+                return left // right
+            case ast.FloorDiv():
+                return left // right
+            case ast.Mod():
+                return left % right
+            case ast.Pow():
+                return left**right
+            case _:
+                raise TypeError(f"Unsupported binary operator: {type(op)}")
+
+
+class FloatParser(NumberParser):
+    CONSTANTS: ClassVar[dict[str, float]] = {
+        "pi": math.pi,
+        "e": math.e,
+        "tau": math.tau,
+        "phi": (1 + math.sqrt(5)) / 2,
+        "sqrt2": math.sqrt(2),
+        "sqrt3": math.sqrt(3),
+    }
+
+    def parse(self, value: str) -> float:
+        result = self._basic_parse(value)
+        if result is not None:
+            return self._convert_result(result)
+
+        if self.allow_expressions:
+            value = value.replace("^", "**")
+
+            try:
+                node = ast.parse(value, mode="eval")
+                result = self._eval_node(node.body)
+            except (SyntaxError, TypeError, NameError):
+                raise ValueError(f"Invalid expression: '{value}'")
+            except ZeroDivisionError:
+                raise ZeroDivisionError(f"Division by zero in expression: '{value}'")
+
+            return self._convert_result(result)
+        else:
+            raise ValueError(f"Invalid float value: '{value}'")
+
+    def _convert_value(self, value):
+        return float(value)
+
+    def _convert_constant(self, value):
+        return float(value)
+
+    def _convert_result(self, result):
+        if isinstance(result, (int, float)):
+            return float(result)
+        else:
+            raise TypeError("Expression does not evaluate to a number")
+
+    def _eval_binop(self, op, left, right):
+        match op:
+            case ast.Add():
+                return left + right
+            case ast.Sub():
+                return left - right
+            case ast.Mult():
+                return left * right
+            case ast.Div():
+                return left / right
+            case ast.FloorDiv():
+                return left // right
+            case ast.Mod():
+                return left % right
+            case ast.Pow():
+                return left**right
+            case _:
+                raise TypeError(f"Unsupported binary operator: {type(op)}")
 
 
 class BoolParser(Parser):

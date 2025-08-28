@@ -306,3 +306,58 @@ class TestLiteral:
 
         with pytest.raises(ValueError):
             parser.parse("4", MyLiteral)
+
+
+class TestIsSupported:
+    class UnsupportedType:
+        pass
+
+    def test_basic_types(self, parser: StrToTypeParser):
+        assert parser.is_supported(int) == True
+        assert parser.is_supported(float) == True
+        assert parser.is_supported(str) == True
+        assert parser.is_supported(bool) == True
+
+        assert parser.is_supported(self.UnsupportedType) == False
+        assert parser.is_supported(bytes) == False
+
+    def test_generic_types(self, parser: StrToTypeParser):
+        assert parser.is_supported(list[int]) == True
+        assert parser.is_supported(list[float]) == True
+        assert parser.is_supported(list[str]) == True
+        assert parser.is_supported(dict[str, int]) == True
+        assert parser.is_supported(dict[str, float]) == True
+        assert parser.is_supported(set[int]) == True
+
+        assert parser.is_supported(list[self.UnsupportedType]) == False
+        assert parser.is_supported(dict[self.UnsupportedType, int]) == False
+
+    def test_union_types(self, parser: StrToTypeParser):
+        assert parser.is_supported(int | float) == True
+        assert parser.is_supported(str | int) == True
+        assert parser.is_supported(float | str) == True
+
+        assert parser.is_supported(int | self.UnsupportedType) == True  # int is supported
+        assert parser.is_supported(self.UnsupportedType | bytes) == False
+
+    def test_literal_types(self, parser: StrToTypeParser):
+        from typing import Literal
+
+        assert parser.is_supported(Literal[1, 2, 3]) == True
+        assert parser.is_supported(Literal["a", "b", "c"]) == True
+        assert parser.is_supported(Literal[True, False]) == True
+
+    def test_enum_types(self, parser: StrToTypeParser):
+        import enum
+
+        class Color(enum.Enum):
+            RED = 1
+            GREEN = 2
+            BLUE = 3
+
+        assert parser.is_supported(Color) == True
+
+    def test_unsupported_types(self, parser: StrToTypeParser):
+        assert parser.is_supported(type) == False
+        assert parser.is_supported(object) == False
+        assert parser.is_supported(None) == False
