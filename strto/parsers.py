@@ -1,3 +1,4 @@
+import ast
 import datetime
 import json
 import os
@@ -163,6 +164,80 @@ class RangeParser(SliceParser):
         return [int(i) for i in value.split(self.sep) if i]
 
 
+class IntParser(Parser):
+    def __init__(self, allow_expressions: bool = True):
+        self.allow_expressions = allow_expressions
+
+    def parse(self, value: str) -> int:
+        value = self.clean(value)
+        if isinstance(value, int):
+            return value
+
+        try:
+            return int(value)
+        except ValueError:
+            pass
+
+        if self.allow_expressions:
+            value = value.replace("^", "**")
+
+            try:
+                node = ast.parse(value, mode="eval")
+                result = self._eval_node(node.body)
+            except (SyntaxError, TypeError, NameError):
+                raise ValueError(f"Invalid expression: '{value}'")
+            except ZeroDivisionError:
+                raise ZeroDivisionError(f"Division by zero in expression: '{value}'")
+            if isinstance(result, (int, float)):
+                return int(result)
+            else:
+                raise TypeError(f"Expression '{value}' does not evaluate to a number")
+        else:
+            raise ValueError(f"Invalid integer value: '{value}'")
+
+    def _eval_node(self, node: ast.expr) -> int:
+        """Safely evaluate an AST node with limited operations."""
+        match node:
+            case ast.Constant():
+                if isinstance(node.value, int):
+                    return node.value
+                elif isinstance(node.value, float):
+                    return int(node.value)
+                else:
+                    raise TypeError(f"Unsupported constant type: {type(node.value)}")
+            case ast.BinOp():
+                left = self._eval_node(node.left)
+                right = self._eval_node(node.right)
+                match node.op:
+                    case ast.Add():
+                        return left + right
+                    case ast.Sub():
+                        return left - right
+                    case ast.Mult():
+                        return left * right
+                    case ast.Div():
+                        return left // right
+                    case ast.FloorDiv():
+                        return left // right
+                    case ast.Mod():
+                        return left % right
+                    case ast.Pow():
+                        return left**right
+                    case _:
+                        raise TypeError(f"Unsupported binary operator: {type(node.op)}")
+            case ast.UnaryOp():
+                operand = self._eval_node(node.operand)
+                match node.op:
+                    case ast.UAdd():
+                        return +operand
+                    case ast.USub():
+                        return -operand
+                    case _:
+                        raise TypeError(f"Unsupported unary operator: {type(node.op)}")
+            case _:
+                raise TypeError(f"Unsupported node type: {type(node)}")
+
+
 class IntFloatParser(Parser):
     def parse(self, value: str) -> int | float:
         value = self.clean(value)
@@ -194,6 +269,7 @@ __all__ = [
     "Parser",
     "DateParser",
     "DatetimeParser",
+    "IntParser",
     "IterableParser",
     "MappingParser",
     "RangeParser",

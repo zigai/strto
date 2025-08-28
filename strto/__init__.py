@@ -130,6 +130,7 @@ def get_parser(from_file: bool = True) -> StrToTypeParser:
         DateParser,
         DatetimeParser,
         IntFloatParser,
+        IntParser,
         IterableParser,
         MappingParser,
         RangeParser,
@@ -138,7 +139,6 @@ def get_parser(from_file: bool = True) -> StrToTypeParser:
 
     DIRECTLY_CASTABLE_TYPES = [
         str,
-        int,
         float,
         decimal.Decimal,
         fractions.Fraction,
@@ -167,6 +167,7 @@ def get_parser(from_file: bool = True) -> StrToTypeParser:
     int_float_parser = IntFloatParser()
     parser.extend(
         {
+            int: IntParser(),
             bool: BoolParser(),
             range: RangeParser(),
             slice: SliceParser(),

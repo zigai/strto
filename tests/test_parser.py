@@ -18,6 +18,58 @@ class TestInt:
     def test_simple(self, parser: StrToTypeParser):
         assert parser.parse("5", int) == 5
 
+    def test_exponent_power(self, parser: StrToTypeParser):
+        assert parser.parse("2**4", int) == 16
+        assert parser.parse("3**2", int) == 9
+
+    def test_scientific_notation(self, parser: StrToTypeParser):
+        assert parser.parse("2e4", int) == 20000
+        assert parser.parse("1e3", int) == 1000
+
+    def test_caret_power(self, parser: StrToTypeParser):
+        assert parser.parse("2^4", int) == 16
+        assert parser.parse("3^2", int) == 9
+
+    def test_multiplication(self, parser: StrToTypeParser):
+        assert parser.parse("2*4", int) == 8
+        assert parser.parse("3*5", int) == 15
+
+    def test_complex_expression(self, parser: StrToTypeParser):
+        assert parser.parse("2*3**2", int) == 18
+        assert parser.parse("2^3*4", int) == 32
+
+    def test_negative_numbers(self, parser: StrToTypeParser):
+        assert parser.parse("-5", int) == -5
+        assert parser.parse("-2**3", int) == -8
+
+    def test_subtraction(self, parser: StrToTypeParser):
+        assert parser.parse("10-3", int) == 7
+        assert parser.parse("20-5-2", int) == 13
+
+    def test_division(self, parser: StrToTypeParser):
+        assert parser.parse("10/2", int) == 5
+        assert parser.parse("20/4", int) == 5
+
+    def test_floor_division(self, parser: StrToTypeParser):
+        assert parser.parse("10//3", int) == 3
+        assert parser.parse("17//4", int) == 4
+
+    def test_modulo(self, parser: StrToTypeParser):
+        assert parser.parse("10%3", int) == 1
+        assert parser.parse("17%4", int) == 1
+
+    def test_addition(self, parser: StrToTypeParser):
+        assert parser.parse("5+3", int) == 8
+        assert parser.parse("10+5+2", int) == 17
+
+    def test_division_by_zero(self, parser: StrToTypeParser):
+        with pytest.raises(ZeroDivisionError):
+            parser.parse("10/0", int)
+        with pytest.raises(ZeroDivisionError):
+            parser.parse("5//0", int)
+        with pytest.raises(ZeroDivisionError):
+            parser.parse("10%0", int)
+
 
 class TestFloat:
     def test_simple(self, parser: StrToTypeParser):
