@@ -7,7 +7,9 @@ from typing import Any, Literal, Protocol
 from stdl import dt
 from stdl.fs import File, json_load, yaml_load
 
-from strto.constants import FROM_FILE_PREFIX, ITER_SEP, SLICE_SEP
+ITER_SEP = ","
+SLICE_SEP = ":"
+FROM_FILE_PREFIX = "@"
 
 
 class Parser(Protocol):

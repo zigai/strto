@@ -3,7 +3,7 @@ import inspect
 import json
 from collections.abc import Callable
 from functools import partial
-from typing import Any, Union
+from typing import Any, TypeVar, Union, cast
 
 from objinspect.typing import (
     get_literal_choices,
@@ -16,8 +16,9 @@ from objinspect.typing import (
     type_origin,
 )
 
-from strto.constants import ITER_SEP
-from strto.parsers import Parser
+from strto.parsers import ITER_SEP, Parser
+
+T = TypeVar("T")
 
 
 class StrToTypeParser:
@@ -30,33 +31,33 @@ class StrToTypeParser:
     def __len__(self):
         return len(self.parsers)
 
-    def __getitem__(self, t: type):
+    def __getitem__(self, t: type[T] | Any) -> Parser | Callable[[str], T]:
         return self.get(t)
 
-    def add(self, t: type, parser: Parser | Callable[[str], Any]):
+    def add(self, t: type[T] | Any, parser: Parser | Callable[[str], T]) -> None:
         self.parsers[t] = parser
 
-    def extend(self, parsers: dict[Any, Parser | Callable[[str], Any]]):
+    def extend(self, parsers: dict[Any, Parser | Callable[[str], Any]]) -> None:
         self.parsers.update(parsers)
 
-    def get(self, t: type) -> Parser | Callable[[str], Any]:
+    def get(self, t: type[T] | Any) -> Parser | Callable[[str], T]:
         return self.parsers[t]
 
-    def get_parse_func(self, t: type) -> Callable[[str], Any]:
+    def get_parse_func(self, t: type[T] | Any) -> Callable[[str], T]:
         return partial(self.parse, t=t)
 
-    def parse(self, value: str, t: type) -> Any:
+    def parse(self, value: str, t: type[T] | Any) -> T:
         if parser := self.parsers.get(t, None):
-            return parser(value)
+            return cast(T, parser(value))
         if is_generic_alias(t):
-            return self._parse_alias(value, t)
+            return cast(T, self._parse_alias(value, t))
         if is_union_type(t):
-            return self._parse_union(value, t)
+            return cast(T, self._parse_union(value, t))
         if value is None:
-            return None
-        return self._parse_special(value, t)
+            return cast(T, None)
+        return cast(T, self._parse_special(value, t))
 
-    def _parse_alias(self, value: str, t: type):
+    def _parse_alias(self, value: str, t: type) -> Any:
         base_t = type_origin(t)
         sub_t = type_args(t)
 

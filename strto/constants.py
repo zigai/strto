@@ -1,3 +1,0 @@
-ITER_SEP = ","
-SLICE_SEP = ":"
-FROM_FILE_PREFIX = "@"
