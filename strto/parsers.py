@@ -10,18 +10,14 @@ from typing import Any, ClassVar, Literal, Protocol
 from stdl import dt
 from stdl.fs import File, json_load, yaml_load
 
+from strto.utils import fmt_parser_err
+
 ITER_SEP = ","
 SLICE_SEP = ":"
 FROM_FILE_PREFIX = "@"
 
 
 class Parser(Protocol):
-    """Typing protocol for parsers.
-
-    This is used for type checking only. Runtime implementations should
-    subclass ``ParserBase``.
-    """
-
     def __call__(self, value: str) -> Any: ...
     def clean(self, value) -> str: ...
     def parse(self, value: str) -> Any: ...
@@ -40,7 +36,7 @@ class ParserBase(ABC):
         return value
 
     @abstractmethod
-    def parse(self, value: str) -> Any:  # pragma: no cover - interface
+    def parse(self, value: str) -> Any:
         raise NotImplementedError
 
 
@@ -53,7 +49,10 @@ class Cast(ParserBase):
     def parse(self, value) -> Any:
         if isinstance(value, self.t):
             return value
-        return self.t(value)
+        try:
+            return self.t(value)
+        except Exception as e:
+            raise ValueError(fmt_parser_err(value, self.t)) from e
 
 
 class IterableParser(ParserBase):
@@ -78,13 +77,17 @@ class IterableParser(ParserBase):
                 if os.path.isfile(filepath):
                     value = self.read_from_file(filepath)
                 else:
-                    raise FileNotFoundError(value)
+                    raise FileNotFoundError(
+                        fmt_parser_err(value, self.t or "iterable", "file not found")
+                    )
             else:
                 value = [i.strip() for i in value.split(self.sep)]
         elif isinstance(value, Iterable):
             value = [i.split(self.sep) for i in value]
         else:
-            raise TypeError(f"Cannot convert '{value}' to an iterable")
+            raise TypeError(
+                fmt_parser_err(value, self.t or "iterable", "expected string or Iterable")
+            )
         if self.t is not None:
             return self.t(value)  # type: ignore
         return value
@@ -123,7 +126,9 @@ class MappingParser(IterableParser):
                 if os.path.isfile(filepath):
                     value = self.read_from_file(filepath)
                 else:
-                    raise FileNotFoundError(value)
+                    raise FileNotFoundError(
+                        fmt_parser_err(value, self.t or "mapping", "file not found")
+                    )
             else:
                 value = json.loads(value)
             if self.t is not None:
@@ -134,7 +139,9 @@ class MappingParser(IterableParser):
                 else:
                     raise ValueError(f"Invalid mode: {self.mode}")
             return value
-        raise TypeError(f"Cannot convert '{value}' to a mapping")
+        raise TypeError(
+            fmt_parser_err(value, self.t or "mapping", "expected JSON string or @file path")
+        )
 
     def read_from_file(self, value: str) -> Mapping:  # type:ignore
         if value.endswith((".yaml", ".yml")):
@@ -144,12 +151,22 @@ class MappingParser(IterableParser):
 
 class DatetimeParser(ParserBase):
     def parse(self, value) -> datetime.datetime:
-        return dt.parse_datetime_str(value)
+        try:
+            return dt.parse_datetime_str(value)
+        except Exception as e:
+            raise ValueError(
+                fmt_parser_err(value, datetime.datetime, "use common date formats like YYYY-MM-DD")
+            ) from e
 
 
 class DateParser(ParserBase):
     def parse(self, value) -> datetime.date:
-        return dt.parse_datetime_str(value).date()
+        try:
+            return dt.parse_datetime_str(value).date()
+        except Exception as e:
+            raise ValueError(
+                fmt_parser_err(value, datetime.date, "use common date formats like YYYY-MM-DD")
+            ) from e
 
 
 class SliceParser(ParserBase):
@@ -167,7 +184,9 @@ class SliceParser(ParserBase):
         nums = self._get_nums(value)
         if len(nums) not in (1, 2, 3):
             raise ValueError(
-                f"{self.t.__name__} argument must be 1-3 values separated by '{self.sep}'"
+                fmt_parser_err(
+                    value, self.t, f"use 'start{self.sep}stop[{self.sep}step]' with 1-3 parts"
+                )
             )
         return self.t(*nums)
 
@@ -218,14 +237,14 @@ class NumberParser(ParserBase):
                     if node.value in self.CONSTANTS:
                         return self.CONSTANTS[node.value]
                     else:
-                        raise TypeError(f"Unsupported constant: '{node.value}'")
+                        raise TypeError(f"unsupported constant: '{node.value}'")
                 else:
-                    raise TypeError(f"Unsupported constant type: {type(node.value)}")
+                    raise TypeError(f"unsupported constant type: {type(node.value)}")
             case ast.Name():
                 if node.id in self.CONSTANTS:
                     return self.CONSTANTS[node.id]
                 else:
-                    raise NameError(f"Undefined name: '{node.id}'")
+                    raise NameError(f"undefined name: '{node.id}'")
             case ast.BinOp():
                 left = self._eval_node(node.left)
                 right = self._eval_node(node.right)
@@ -238,9 +257,9 @@ class NumberParser(ParserBase):
                     case ast.USub():
                         return -operand
                     case _:
-                        raise TypeError(f"Unsupported unary operator: {type(node.op)}")
+                        raise TypeError(f"unsupported unary operator: {type(node.op)}")
             case _:
-                raise TypeError(f"Unsupported node type: {type(node)}")
+                raise TypeError(f"unsupported node type: {type(node)}")
 
     def _convert_constant(self, value):
         """Convert a constant value. To be implemented by subclasses."""
@@ -261,7 +280,7 @@ class IntParser(NumberParser):
         if isinstance(value, str) and value in self.CONSTANTS:
             return self.CONSTANTS[value]
         if "." in value:
-            raise ValueError(f"Invalid integer value: '{value}' (looks like a float)")
+            raise ValueError(fmt_parser_err(value, int, "looks like a float"))
 
         try:
             return self._convert_value(value)
@@ -282,13 +301,13 @@ class IntParser(NumberParser):
                 node = ast.parse(value, mode="eval")
                 result = self._eval_node(node.body)
             except (SyntaxError, TypeError, NameError):
-                raise ValueError(f"Invalid expression: '{value}'")
+                raise ValueError(fmt_parser_err(value, int, "invalid expression or name"))
             except ZeroDivisionError:
-                raise ZeroDivisionError(f"Division by zero in expression: '{value}'")
+                raise ZeroDivisionError(fmt_parser_err(value, int, "division by zero"))
 
             return self._convert_result(result)
         else:
-            raise ValueError(f"Invalid integer value: '{value}'")
+            raise ValueError(fmt_parser_err(value, int, "invalid integer value"))
 
     def _convert_value(self, value):
         return int(value)
@@ -300,7 +319,7 @@ class IntParser(NumberParser):
         if isinstance(result, (int, float)):
             return int(result)
         else:
-            raise TypeError("Expression does not evaluate to a number")
+            raise TypeError("expression does not evaluate to a number")
 
     def _eval_binop(self, op, left, right):
         match op:
@@ -319,7 +338,7 @@ class IntParser(NumberParser):
             case ast.Pow():
                 return left**right
             case _:
-                raise TypeError(f"Unsupported binary operator: {type(op)}")
+                raise TypeError(f"unsupported binary operator: {type(op)}")
 
 
 class FloatParser(NumberParser):
@@ -344,13 +363,13 @@ class FloatParser(NumberParser):
                 node = ast.parse(value, mode="eval")
                 result = self._eval_node(node.body)
             except (SyntaxError, TypeError, NameError):
-                raise ValueError(f"Invalid expression: '{value}'")
+                raise ValueError(fmt_parser_err(value, float, "invalid expression or name"))
             except ZeroDivisionError:
-                raise ZeroDivisionError(f"Division by zero in expression: '{value}'")
+                raise ZeroDivisionError(fmt_parser_err(value, float, "division by zero"))
 
             return self._convert_result(result)
         else:
-            raise ValueError(f"Invalid float value: '{value}'")
+            raise ValueError(fmt_parser_err(value, float, "invalid float value"))
 
     def _convert_value(self, value):
         return float(value)
@@ -362,7 +381,7 @@ class FloatParser(NumberParser):
         if isinstance(result, (int, float)):
             return float(result)
         else:
-            raise TypeError("Expression does not evaluate to a number")
+            raise TypeError("expression does not evaluate to a number")
 
     def _eval_binop(self, op, left, right):
         match op:
@@ -381,7 +400,7 @@ class FloatParser(NumberParser):
             case ast.Pow():
                 return left**right
             case _:
-                raise TypeError(f"Unsupported binary operator: {type(op)}")
+                raise TypeError(f"unsupported binary operator: {type(op)}")
 
 
 class BoolParser(ParserBase):
@@ -396,8 +415,8 @@ class BoolParser(ParserBase):
                 return True
             if value in ["0", "false"]:
                 return False
-            raise ValueError(value)
-        raise TypeError(value)
+            raise ValueError(fmt_parser_err(value, bool, "valid choices: '1','0','true','false'"))
+        raise TypeError(fmt_parser_err(value, bool, "expected bool, int, or str"))
 
 
 __all__ = [
