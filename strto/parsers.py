@@ -3,6 +3,7 @@ import datetime
 import json
 import math
 import os
+from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping
 from typing import Any, ClassVar, Literal, Protocol
 
@@ -15,7 +16,19 @@ FROM_FILE_PREFIX = "@"
 
 
 class Parser(Protocol):
-    """Base class for all parsers"""
+    """Typing protocol for parsers.
+
+    This is used for type checking only. Runtime implementations should
+    subclass ``ParserBase``.
+    """
+
+    def __call__(self, value: str) -> Any: ...
+    def clean(self, value) -> str: ...
+    def parse(self, value: str) -> Any: ...
+
+
+class ParserBase(ABC):
+    """Abstract base class for runtime parser implementations."""
 
     def __call__(self, value: str) -> Any:
         value = self.clean(value)
@@ -26,11 +39,12 @@ class Parser(Protocol):
             return value.strip()
         return value
 
-    def parse(self, value: str) -> Any:
+    @abstractmethod
+    def parse(self, value: str) -> Any:  # pragma: no cover - interface
         raise NotImplementedError
 
 
-class Cast(Parser):
+class Cast(ParserBase):
     """Cast a value to a type."""
 
     def __init__(self, t: type):
@@ -42,7 +56,7 @@ class Cast(Parser):
         return self.t(value)
 
 
-class IterableParser(Parser):
+class IterableParser(ParserBase):
     """
     Convert a value to an iterable.
 
@@ -128,17 +142,17 @@ class MappingParser(IterableParser):
         return json_load(value)  # type:ignore
 
 
-class DatetimeParser(Parser):
+class DatetimeParser(ParserBase):
     def parse(self, value) -> datetime.datetime:
         return dt.parse_datetime_str(value)
 
 
-class DateParser(Parser):
+class DateParser(ParserBase):
     def parse(self, value) -> datetime.date:
         return dt.parse_datetime_str(value).date()
 
 
-class SliceParser(Parser):
+class SliceParser(ParserBase):
     t = slice
 
     def __init__(self, sep: str = SLICE_SEP):
@@ -165,7 +179,7 @@ class RangeParser(SliceParser):
         return [int(i) for i in value.split(self.sep) if i]
 
 
-class NumberParser(Parser):
+class NumberParser(ParserBase):
     """Base class for numeric parsers."""
 
     CONSTANTS: ClassVar[dict[str, float]] = {}
@@ -370,7 +384,7 @@ class FloatParser(NumberParser):
                 raise TypeError(f"Unsupported binary operator: {type(op)}")
 
 
-class BoolParser(Parser):
+class BoolParser(ParserBase):
     def parse(self, value: str) -> bool:
         if isinstance(value, bool):
             return value
@@ -389,6 +403,7 @@ class BoolParser(Parser):
 __all__ = [
     "Cast",
     "Parser",
+    "ParserBase",
     "DateParser",
     "DatetimeParser",
     "FloatParser",

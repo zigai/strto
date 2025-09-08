@@ -16,7 +16,7 @@ from objinspect.typing import (
     type_origin,
 )
 
-from strto.parsers import ITER_SEP, Parser
+from strto.parsers import ITER_SEP, Parser, ParserBase
 
 T = TypeVar("T")
 
@@ -214,4 +214,4 @@ def get_parser(from_file: bool = True) -> StrToTypeParser:
     return parser
 
 
-__all__ = ["StrToTypeParser", "get_parser"]
+__all__ = ["StrToTypeParser", "get_parser", "ParserBase"]
