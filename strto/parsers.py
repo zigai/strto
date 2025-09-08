@@ -19,7 +19,7 @@ FROM_FILE_PREFIX = "@"
 
 class Parser(Protocol):
     def __call__(self, value: str) -> Any: ...
-    def clean(self, value) -> str: ...
+    def clean(self, value: Any) -> Any: ...
     def parse(self, value: str) -> Any: ...
 
 
@@ -30,7 +30,7 @@ class ParserBase(ABC):
         value = self.clean(value)
         return self.parse(value)
 
-    def clean(self, value) -> str:
+    def clean(self, value: Any) -> Any:
         if isinstance(value, str):
             return value.strip()
         return value
@@ -46,7 +46,7 @@ class Cast(ParserBase):
     def __init__(self, t: type):
         self.t = t
 
-    def parse(self, value) -> Any:
+    def parse(self, value: Any) -> Any:
         if isinstance(value, self.t):
             return value
         try:
@@ -70,7 +70,7 @@ class IterableParser(ParserBase):
         self.sep = sep
         self.from_file = from_file
 
-    def parse(self, value) -> Iterable:
+    def parse(self, value: str | Iterable[str]) -> Iterable[str]:
         if isinstance(value, str):
             if self.from_file and value.startswith(FROM_FILE_PREFIX):
                 filepath = value[len(FROM_FILE_PREFIX) :]
@@ -92,7 +92,7 @@ class IterableParser(ParserBase):
             return self.t(value)  # type: ignore
         return value
 
-    def read_from_file(self, value: str):
+    def read_from_file(self, value: str) -> list[str]:
         data = File(value).should_exist().splitlines()
         if len(data) == 1 and self.sep in data[0]:
             data = data[0].split(self.sep)
@@ -119,7 +119,7 @@ class MappingParser(IterableParser):
         super().__init__(t, sep, from_file)
         self.mode = mode
 
-    def parse(self, value) -> Mapping:
+    def parse(self, value: str) -> Mapping[Any, Any]:
         if isinstance(value, str):
             if self.from_file and value.startswith(FROM_FILE_PREFIX):
                 filepath = value[len(FROM_FILE_PREFIX) :]
@@ -150,7 +150,7 @@ class MappingParser(IterableParser):
 
 
 class DatetimeParser(ParserBase):
-    def parse(self, value) -> datetime.datetime:
+    def parse(self, value: str) -> datetime.datetime:
         try:
             return dt.parse_datetime_str(value)
         except Exception as e:
@@ -160,7 +160,7 @@ class DatetimeParser(ParserBase):
 
 
 class DateParser(ParserBase):
-    def parse(self, value) -> datetime.date:
+    def parse(self, value: str) -> datetime.date:
         try:
             return dt.parse_datetime_str(value).date()
         except Exception as e:
@@ -175,10 +175,10 @@ class SliceParser(ParserBase):
     def __init__(self, sep: str = SLICE_SEP):
         self.sep = sep
 
-    def _get_nums(self, value: str):
+    def _get_nums(self, value: str) -> list[float | None]:
         return [float(i) if i else None for i in value.split(self.sep)]
 
-    def parse(self, value: str):
+    def parse(self, value: str | slice) -> slice:
         if isinstance(value, self.t):
             return value
         nums = self._get_nums(value)
@@ -194,23 +194,23 @@ class SliceParser(ParserBase):
 class RangeParser(SliceParser):
     t = range
 
-    def _get_nums(self, value: str):  # type:ignore
+    def _get_nums(self, value: str) -> list[int]:  # type:ignore
         return [int(i) for i in value.split(self.sep) if i]
 
 
 class NumberParser(ParserBase):
     """Base class for numeric parsers."""
 
-    CONSTANTS: ClassVar[dict[str, float]] = {}
+    CONSTANTS: ClassVar[dict[str, float | int]] = {}
 
     def __init__(self, allow_expressions: bool = True):
         self.allow_expressions = allow_expressions
 
-    def parse(self, value: str):
+    def parse(self, value: str) -> Any:
         """Parse a string into a numeric value. To be implemented by subclasses."""
         raise NotImplementedError
 
-    def _basic_parse(self, value: str):
+    def _basic_parse(self, value: str) -> float | int | None:
         value = self.clean(value)
 
         if isinstance(value, str) and value in self.CONSTANTS:
@@ -223,11 +223,11 @@ class NumberParser(ParserBase):
 
         return None
 
-    def _convert_value(self, value):
+    def _convert_value(self, value: str) -> float | int:
         """Convert value to the appropriate numeric type. To be implemented by subclasses."""
         raise NotImplementedError
 
-    def _eval_node(self, node: ast.expr):
+    def _eval_node(self, node: ast.expr) -> float | int:
         """Safely evaluate an AST node with limited operations."""
         match node:
             case ast.Constant():
@@ -261,17 +261,19 @@ class NumberParser(ParserBase):
             case _:
                 raise TypeError(f"unsupported node type: {type(node)}")
 
-    def _convert_constant(self, value):
+    def _convert_constant(self, value: float | int) -> float | int:
         """Convert a constant value. To be implemented by subclasses."""
         raise NotImplementedError
 
-    def _eval_binop(self, op, left, right):
+    def _eval_binop(self, op: ast.operator, left: float | int, right: float | int) -> float | int:
         """Evaluate a binary operation. To be implemented by subclasses."""
         raise NotImplementedError
 
 
 class IntParser(NumberParser):
-    def _basic_parse(self, value: str):
+    CONSTANTS: ClassVar[dict[str, int]] = {}
+
+    def _basic_parse(self, value: str) -> int | None:
         """Override to reject float-like strings for union parsing"""
         value = self.clean(value)
 
@@ -309,19 +311,19 @@ class IntParser(NumberParser):
         else:
             raise ValueError(fmt_parser_err(value, int, "invalid integer value"))
 
-    def _convert_value(self, value):
+    def _convert_value(self, value: str) -> int:
         return int(value)
 
-    def _convert_constant(self, value):
+    def _convert_constant(self, value: float | int) -> int:
         return int(value)
 
-    def _convert_result(self, result):
+    def _convert_result(self, result: float | int) -> int:
         if isinstance(result, (int, float)):
             return int(result)
         else:
             raise TypeError("expression does not evaluate to a number")
 
-    def _eval_binop(self, op, left, right):
+    def _eval_binop(self, op: ast.operator, left: int, right: int) -> int:
         match op:
             case ast.Add():
                 return left + right
@@ -371,19 +373,19 @@ class FloatParser(NumberParser):
         else:
             raise ValueError(fmt_parser_err(value, float, "invalid float value"))
 
-    def _convert_value(self, value):
+    def _convert_value(self, value: str) -> float:
         return float(value)
 
-    def _convert_constant(self, value):
+    def _convert_constant(self, value: float | int) -> float:
         return float(value)
 
-    def _convert_result(self, result):
+    def _convert_result(self, result: float | int) -> float:
         if isinstance(result, (int, float)):
             return float(result)
         else:
             raise TypeError("expression does not evaluate to a number")
 
-    def _eval_binop(self, op, left, right):
+    def _eval_binop(self, op: ast.operator, left: float | int, right: float | int) -> float:
         match op:
             case ast.Add():
                 return left + right
@@ -404,7 +406,7 @@ class FloatParser(NumberParser):
 
 
 class BoolParser(ParserBase):
-    def parse(self, value: str) -> bool:
+    def parse(self, value: str | int | bool) -> bool:
         if isinstance(value, bool):
             return value
         if isinstance(value, int):
