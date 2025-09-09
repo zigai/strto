@@ -16,7 +16,7 @@ from objinspect.typing import (
     type_origin,
 )
 
-from strto.parsers import ITER_SEP, Parser, fmt_parser_err
+from strto.parsers import ITER_SEP, LiteralParser, Parser, fmt_parser_err
 
 T = TypeVar("T")
 
@@ -137,39 +137,22 @@ class StrToTypeParser:
                     raise KeyError(fmt_parser_err(value, t, f"valid choices: {choices}")) from e
 
         if is_direct_literal(t):
-            choices = get_literal_choices(t)
-            if not choices:
-                raise ValueError(fmt_parser_err(value, t, "no valid Literal choices"))
-            if value in choices:
-                return cast(T, value)
+            parser = LiteralParser(
+                get_literal_choices(t),
+                target_t=t,
+            )
+            return cast(T, parser(value))
 
-            possible_types = [i for i in [int, str, bytes, bool] if i in {type(j) for j in choices}]
-            for possible_type in possible_types:
-                try:
-                    if possible_type is bool:
-                        parsed = value.lower() == "true"
-                    else:
-                        parsed = possible_type(value)
-                    if parsed in choices:
-                        return cast(T, parsed)
-                except ValueError:
-                    continue
-            else:
-                raise ValueError(fmt_parser_err(value, t, f"valid choices: {choices}"))
         raise TypeError(
             fmt_parser_err(
                 value,
                 t,
-                "unsupported type; add a custom parser via parser.add(T, ...) or extend the registry",
+                "unsupported type; add a custom parser via parser.add(T, ...).",
             )
         )
 
 
 def get_parser(from_file: bool = True) -> StrToTypeParser:
-    """
-    Args:
-        from_file (bool): Allow iterable types to be loaded from a file.
-    """
     import datetime
     import decimal
     import fractions

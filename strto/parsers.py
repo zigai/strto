@@ -439,6 +439,43 @@ class BoolParser(ParserBase):
         raise TypeError(fmt_parser_err(value, bool, "expected bool, int, or str"))
 
 
+class LiteralParser(ParserBase):
+    def __init__(
+        self,
+        choices: tuple[Any, ...],
+        *,
+        target_t: Any = None,
+    ) -> None:
+        self._choices = list(choices)
+        self._target_t = target_t
+
+    def parse(self, value: Any) -> Any:
+        target = self._target_t or "Literal"
+        choices = self._choices
+
+        if not choices:
+            raise ValueError(fmt_parser_err(value, target, "no valid Literal choices"))
+
+        if value in choices:
+            return value
+
+        present_types = {type(j) for j in choices}
+        for t in (int, str, bytes, bool):
+            if t not in present_types:
+                continue
+            try:
+                if t is bool:
+                    parsed = value.lower() == "true" if isinstance(value, str) else bool(value)
+                else:
+                    parsed = t(value)
+                if parsed in choices:
+                    return parsed
+            except Exception:
+                continue
+
+        raise ValueError(fmt_parser_err(value, target, f"valid choices: {choices}"))
+
+
 __all__ = [
     "Cast",
     "Parser",
@@ -452,4 +489,5 @@ __all__ = [
     "RangeParser",
     "SliceParser",
     "BoolParser",
+    "LiteralParser",
 ]
