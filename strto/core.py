@@ -72,6 +72,17 @@ class StrToTypeParser:
             key_type, value_type = sub_t
             return self.is_supported(key_type) and self.is_supported(value_type)
         elif is_iterable_type(base_t):
+            if base_t is tuple:  # tuple[T] or tuple[T, ...] or fixed-length tuple[T1, T2, ...]
+                if not sub_t:
+                    return False
+                if len(sub_t) == 1:
+                    return self.is_supported(sub_t[0])
+                if len(sub_t) == 2 and sub_t[1] is Ellipsis:
+                    return self.is_supported(sub_t[0])
+                return all(self.is_supported(i) for i in sub_t)
+
+            if not sub_t:
+                return False
             item_type = sub_t[0]
             return self.is_supported(item_type)
 
@@ -112,7 +123,26 @@ class StrToTypeParser:
             return cast(T, mapping_instance)
 
         elif is_iterable_type(base_t):
-            item_t = sub_t[0]
+            if base_t is tuple:
+                parts = [i.strip() for i in value.split(ITER_SEP)] if value != "" else []
+
+                if len(sub_t) == 1:  # tuple[T]
+                    item_t = sub_t[0]
+                    return cast(T, tuple(self.parse(i, item_t) for i in parts))
+
+                if len(sub_t) == 2 and sub_t[1] is Ellipsis:  # tuple[T, ...]
+                    item_t = sub_t[0]
+                    return cast(T, tuple(self.parse(i, item_t) for i in parts))
+
+                # fixed-length tuple
+                expected_len = len(sub_t)
+                if len(parts) != expected_len:
+                    raise ValueError(fmt_parser_err(value, t, f"expected {expected_len} items"))
+                return cast(
+                    T, tuple(self.parse(v, st) for v, st in zip(parts, sub_t, strict=False))
+                )
+
+            item_t = sub_t[0]  # iterables with single parameter, e.g., list[T], set[T]
             return cast(T, base_t([self.parse(i.strip(), item_t) for i in value.split(ITER_SEP)]))
 
         raise TypeError(fmt_parser_err(value, t, "unsupported generic alias"))

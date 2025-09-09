@@ -187,6 +187,22 @@ class TestTuple:
     def test_str(self, parser: StrToTypeParser):
         assert parser.parse("1,2,3,4,5", tuple[str]) == ("1", "2", "3", "4", "5")
 
+    def test_variadic_with_ellipsis_int(self, parser: StrToTypeParser):
+        assert parser.parse("1,2,3", tuple[int, ...]) == (1, 2, 3)
+
+    def test_variadic_with_ellipsis_float(self, parser: StrToTypeParser):
+        assert parser.parse("1,2,3.5", tuple[float, ...]) == (1.0, 2.0, 3.5)
+
+    def test_fixed_length_two(self, parser: StrToTypeParser):
+        assert parser.parse("1,hello", tuple[int, str]) == (1, "hello")
+
+    def test_fixed_length_three(self, parser: StrToTypeParser):
+        assert parser.parse("1,2.5,True", tuple[int, float, bool]) == (1, 2.5, True)
+
+    def test_fixed_length_mismatch_raises(self, parser: StrToTypeParser):
+        with pytest.raises(ValueError):
+            parser.parse("1,2", tuple[int, str, int])
+
 
 class TestSet:
     def test_int(self, parser: StrToTypeParser):
@@ -356,6 +372,11 @@ class TestIsSupported:
 
         assert parser.is_supported(list[self.UnsupportedType]) == False
         assert parser.is_supported(dict[self.UnsupportedType, int]) == False
+
+        assert parser.is_supported(tuple[int, ...]) == True
+        assert parser.is_supported(tuple[int, str]) == True
+        assert parser.is_supported(tuple[self.UnsupportedType, ...]) == False
+        assert parser.is_supported(tuple[int, self.UnsupportedType]) == False
 
     def test_union_types(self, parser: StrToTypeParser):
         assert parser.is_supported(int | float) == True
