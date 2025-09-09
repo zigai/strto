@@ -70,7 +70,7 @@ class IterableParser(ParserBase):
         self.sep = sep
         self.from_file = from_file
 
-    def parse(self, value: str | Iterable[str]) -> Iterable[str]:
+    def parse(self, value: str | Iterable[str]) -> Iterable:
         if isinstance(value, str):
             if self.from_file and value.startswith(FROM_FILE_PREFIX):
                 filepath = value[len(FROM_FILE_PREFIX) :]
@@ -406,18 +406,36 @@ class FloatParser(NumberParser):
 
 
 class BoolParser(ParserBase):
+    def __init__(
+        self,
+        true_synonyms: set[str] | None = None,
+        false_synonyms: set[str] | None = None,
+        case_sensitive: bool = False,
+    ) -> None:
+        self._true_synonyms = true_synonyms or {"1", "true", "yes", "y", "on"}
+        self._false_synonyms = false_synonyms or {"0", "false", "no", "n", "off"}
+        self._case_sensitive = case_sensitive
+        if case_sensitive:
+            self._true_synonyms = {s.lower() for s in self._true_synonyms}
+            self._false_synonyms = {s.lower() for s in self._false_synonyms}
+
     def parse(self, value: str | int | bool) -> bool:
         if isinstance(value, bool):
             return value
         if isinstance(value, int):
             return bool(value)
         if isinstance(value, str):
-            value = value.lower()
-            if value in ["1", "true"]:
+            key = value if self._case_sensitive else value.lower()
+            if key in self._true_synonyms:
                 return True
-            if value in ["0", "false"]:
+            if key in self._false_synonyms:
                 return False
-            raise ValueError(fmt_parser_err(value, bool, "valid choices: '1','0','true','false'"))
+            valid_choices = sorted(self._true_synonyms | self._false_synonyms)
+            raise ValueError(
+                fmt_parser_err(
+                    value, bool, "valid choices: " + ", ".join(repr(c) for c in valid_choices)
+                )
+            )
         raise TypeError(fmt_parser_err(value, bool, "expected bool, int, or str"))
 
 

@@ -308,6 +308,31 @@ class TestLiteral:
             parser.parse("4", MyLiteral)
 
 
+class TestBool:
+    def test_bool_synonyms_default(self, parser: StrToTypeParser):
+        for v in ["1", "true", "True", "TRUE", "yes", "YeS", "y", "Y", "on", "On"]:
+            assert parser.parse(v, bool) is True
+
+        for v in ["0", "false", "False", "FALSE", "no", "No", "n", "N", "off", "OFF"]:
+            assert parser.parse(v, bool) is False
+
+    def test_bool_case_sensitive_override(self):
+        parser = get_parser()
+        from strto.parsers import BoolParser
+
+        parser.add(bool, BoolParser(case_sensitive=True))
+
+        for v in ["true", "yes", "y", "on", "1"]:
+            assert parser.parse(v, bool) is True
+        for v in ["false", "no", "n", "off", "0"]:
+            assert parser.parse(v, bool) is False
+
+        with pytest.raises(ValueError):
+            parser.parse("True", bool)
+        with pytest.raises(ValueError):
+            parser.parse("False", bool)
+
+
 class TestIsSupported:
     class UnsupportedType:
         pass
