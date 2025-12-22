@@ -185,3 +185,8 @@ convention = "google"
 
 [tool.codespell]
 skip = '.git,uv.lock'
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.2.0",
+]
