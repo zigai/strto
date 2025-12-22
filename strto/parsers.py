@@ -46,6 +46,11 @@ class Cast(ParserBase):
     def __init__(self, t: type):
         self.t = t
 
+    def clean(self, value: Any) -> Any:
+        if self.t is str:
+            return value
+        return super().clean(value)
+
     def parse(self, value: Any) -> Any:
         if isinstance(value, self.t):
             return value
