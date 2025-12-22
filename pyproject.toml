@@ -1,6 +1,6 @@
 [project]
 name = "strto"
-version = "0.2.3"
+version = "0.2.4"
 description = "Type-guided parsing library for converting strings to Python objects"
 authors = [{ name = "Žiga Ivanšek", email = "ziga.ivansek@gmail.com" }]
 license = { file = "LICENSE" }
