@@ -34,6 +34,12 @@ def test_cast_success_and_error() -> None:
         caster("not-int")
 
 
+def test_cast_str_preserves_whitespace() -> None:
+    caster = parsers.Cast(str)
+    assert caster("  spaced  ") == "  spaced  "
+    assert parsers.Cast(int)(" 5 ") == 5
+
+
 def test_iterable_parser_from_file(tmp_path) -> None:
     data_file = tmp_path / "values.txt"
     data_file.write_text("1,2,3")

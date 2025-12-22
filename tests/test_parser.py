@@ -148,6 +148,14 @@ class TestPath:
         assert parser.parse("./data/here.txt", pathlib.Path) == pathlib.Path("./data/here.txt")
 
 
+class TestStr:
+    def test_preserves_whitespace(self, parser: StrToTypeParser):
+        assert parser.parse("  spaced  ", str) == "  spaced  "
+
+    def test_list_trims_items(self, parser: StrToTypeParser):
+        assert parser.parse(" a , b  ,c ", list[str]) == ["a", "b", "c"]
+
+
 class TestList:
     def test_simple(self, parser: StrToTypeParser):
         assert parser.parse("1,2,3,4,5", list) == ["1", "2", "3", "4", "5"]
