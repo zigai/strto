@@ -98,6 +98,7 @@ select = [
     "E",       # Pycodestyle (Error)
     'I',       # isort
     'D',       # pydocstyle
+    'D213',    # pydocstyle
     'UP',      # pyupgrade
     'YTT',     # flake8-2020
     'B',       # flake8-bugbear
