@@ -352,6 +352,23 @@ class TestBool:
             parser.parse("False", bool)
 
 
+class TestAnnotated:
+    def test_direct(self, parser: StrToTypeParser):
+        from typing import Annotated
+
+        assert parser.parse("5", Annotated[int, "meta"]) == 5
+
+    def test_list_item(self, parser: StrToTypeParser):
+        from typing import Annotated
+
+        assert parser.parse("1,2,3", list[Annotated[int, "meta"]]) == [1, 2, 3]
+
+    def test_union(self, parser: StrToTypeParser):
+        from typing import Annotated
+
+        assert parser.parse("1.5", Annotated[int | float, "meta"]) == 1.5
+
+
 class TestIsSupported:
     class UnsupportedType:
         pass
