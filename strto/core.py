@@ -18,6 +18,7 @@ from objinspect.typing import (
 )
 
 from strto.parsers import ITER_SEP, LiteralParser, Parser, fmt_parser_err
+from strto.utils import unwrap_annotated
 
 T = TypeVar("T")
 
@@ -56,6 +57,7 @@ class StrToTypeParser:
 
     def is_supported(self, t: type[T] | Any) -> bool:
         """Check if a type is supported for parsing."""
+        t = unwrap_annotated(t)
         try:
             if self.parsers.get(t, None):
                 return True
@@ -103,6 +105,7 @@ class StrToTypeParser:
         return False
 
     def parse(self, value: str, t: type[T] | Any) -> T:
+        t = unwrap_annotated(t)
         if parser := self.parsers.get(t, None):
             return cast(T, parser(value))
         if is_generic_alias(t):
