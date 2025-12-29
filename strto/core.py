@@ -2,7 +2,6 @@ import enum
 import inspect
 import json
 from collections.abc import Callable
-from functools import partial
 from typing import Any, TypeVar, cast
 
 from objinspect.typing import (
@@ -19,6 +18,13 @@ from objinspect.typing import (
 from strto.parsers import ITER_SEP, LiteralParser, Parser, fmt_parser_err
 
 T = TypeVar("T")
+
+
+def _format_type_for_repr(t: Any) -> str:
+    name = getattr(t, "__name__", None)
+    if name:
+        return name
+    return str(t)
 
 
 class StrToTypeParser:
@@ -44,7 +50,7 @@ class StrToTypeParser:
         return self.parsers[t]
 
     def get_parse_func(self, t: type[T] | Any) -> Callable[[str], T]:
-        return partial(self.parse, t=t)
+        return _ParseFunc(self, t)
 
     def is_supported(self, t: type[T] | Any) -> bool:
         """Check if a type is supported for parsing."""
@@ -180,6 +186,18 @@ class StrToTypeParser:
                 "unsupported type; add a custom parser via parser.add(T, ...).",
             )
         )
+
+
+class _ParseFunc:
+    def __init__(self, parser: StrToTypeParser, t: type[T] | Any) -> None:
+        self._parser = parser
+        self._t = t
+
+    def __call__(self, value: str) -> T:
+        return self._parser.parse(value, self._t)
+
+    def __repr__(self) -> str:
+        return f"parser[{_format_type_for_repr(self._t)}]"
 
 
 def get_parser(from_file: bool = True) -> StrToTypeParser:

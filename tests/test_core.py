@@ -19,6 +19,7 @@ def test_len_and_getitem(parser: StrToTypeParser) -> None:
     assert callable(parser.get(int))
     parse_int = parser.get_parse_func(int)
     assert parse_int("7") == 7
+    assert repr(parse_int) == "parser[int]"
     parser.extend({complex: complex})
     assert parser.parse("1+2j", complex) == complex(1, 2)
 
