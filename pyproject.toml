@@ -161,7 +161,6 @@ ignore = [
     "N803",
     "N806",
     "UP007",
-    "UP038",
 ]
 exclude = ["build", "tests/**"]
 
@@ -187,6 +186,4 @@ convention = "google"
 skip = '.git,uv.lock'
 
 [dependency-groups]
-dev = [
-    "pre-commit>=4.2.0",
-]
+dev = ["pre-commit>=4.2.0"]
