@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import enum
 import inspect
 import json
 from collections.abc import Callable
-from typing import Any, TypeVar, cast
+from typing import Any, Generic, TypeVar, cast
 
 from objinspect.typing import (
     get_literal_choices,
@@ -49,7 +51,7 @@ class StrToTypeParser:
     def get(self, t: type[T]) -> Parser | Callable[[str], T]:
         return self.parsers[t]
 
-    def get_parse_func(self, t: type[T] | Any) -> Callable[[str], T]:
+    def get_parse_func(self, t: type[T]) -> _ParseFunc[T]:
         return _ParseFunc(self, t)
 
     def is_supported(self, t: type[T] | Any) -> bool:
@@ -188,8 +190,8 @@ class StrToTypeParser:
         )
 
 
-class _ParseFunc:
-    def __init__(self, parser: StrToTypeParser, t: type[T] | Any) -> None:
+class _ParseFunc(Generic[T]):
+    def __init__(self, parser: StrToTypeParser, t: type[T]) -> None:
         self._parser = parser
         self._t = t
 
