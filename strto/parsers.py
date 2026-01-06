@@ -1,3 +1,4 @@
+import array
 import ast
 import datetime
 import json
@@ -239,6 +240,91 @@ class TimedeltaParser(ParserBase[datetime.timedelta]):
             raise ValueError(
                 fmt_parser_err(value, datetime.timedelta, "use formats like HH:MM:SS or seconds")
             ) from e
+
+
+class ArrayParser(ParserBase[array.array]):  # type: ignore[type-arg]
+    """
+    Parse comma-separated values into an array.array.
+
+    Type code priority:
+    1. Explicit type_code parameter
+    2. Infer from type annotation (int → 'l', float → 'd', ctypes → matching code)
+    3. Infer from input values (contains '.' → 'd', else 'l')
+    """
+
+    TYPE_CODE_MAP: ClassVar[dict[type, str]] = {
+        int: "l",  # signed long
+        float: "d",  # double
+    }
+
+    _CTYPES_MAP: ClassVar[dict[type, str] | None] = None
+
+    @classmethod
+    def _get_ctypes_map(cls) -> dict[type, str]:
+        if cls._CTYPES_MAP is None:
+            import ctypes
+
+            cls._CTYPES_MAP = {
+                ctypes.c_byte: "b",  # signed char
+                ctypes.c_ubyte: "B",  # unsigned char
+                ctypes.c_short: "h",  # signed short
+                ctypes.c_ushort: "H",  # unsigned short
+                ctypes.c_int: "i",  # signed int
+                ctypes.c_uint: "I",  # unsigned int
+                ctypes.c_long: "l",  # signed long
+                ctypes.c_ulong: "L",  # unsigned long
+                ctypes.c_longlong: "q",  # signed long long
+                ctypes.c_ulonglong: "Q",  # unsigned long long
+                ctypes.c_float: "f",  # float
+                ctypes.c_double: "d",  # double
+                ctypes.c_wchar: "w",  # unicode character
+            }
+        return cls._CTYPES_MAP
+
+    @classmethod
+    def get_type_code(cls, t: type | None) -> str | None:
+        """Get type code from a type, checking both basic types and ctypes."""
+        if t is None:
+            return None
+        if t in cls.TYPE_CODE_MAP:
+            return cls.TYPE_CODE_MAP[t]
+        return cls._get_ctypes_map().get(t)
+
+    def __init__(
+        self,
+        type_code: str | None = None,
+        sep: str = ITER_SEP,
+    ) -> None:
+        self.type_code = type_code
+        self.sep = sep
+
+    def parse(self, value: str | array.array) -> array.array:  # type: ignore[type-arg]
+        if isinstance(value, array.array):
+            return value
+
+        parts = [p.strip() for p in value.split(self.sep)]
+
+        code = self.type_code
+        if code is None:
+            code = self._infer_type_code(parts)
+
+        try:
+            if code in ("f", "d"):
+                parsed = [float(p) for p in parts]
+            else:
+                parsed = [int(p) for p in parts]
+            return array.array(code, parsed)
+        except ValueError as e:
+            raise ValueError(
+                fmt_parser_err(value, array.array, f"invalid value for type code '{code}'")
+            ) from e
+
+    def _infer_type_code(self, parts: list[str]) -> str:
+        """Infer type code from input values."""
+        for p in parts:
+            if "." in p:
+                return "d"
+        return "l"
 
 
 class SliceParser(ParserBase[slice]):
@@ -566,6 +652,7 @@ class LiteralParser(ParserBase[ParseResultType]):
 
 
 __all__ = [
+    "ArrayParser",
     "Cast",
     "Parser",
     "ParserBase",

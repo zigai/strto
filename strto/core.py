@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import array
 import enum
 import inspect
 import json
@@ -133,7 +134,15 @@ class StrToTypeParser:
                 mapping_instance[self.parse(k, key_type)] = self.parse(v, value_type)
             return cast(T, mapping_instance)
 
-        elif is_iterable_type(base_t):
+        if base_t is array.array:
+            from strto.parsers import ArrayParser
+
+            item_t = sub_t[0] if sub_t else None
+            type_code = ArrayParser.get_type_code(item_t)
+            parser = ArrayParser(type_code=type_code)
+            return cast(T, parser(value))
+
+        if is_iterable_type(base_t):
             if base_t is tuple:
                 parts = [i.strip() for i in value.split(ITER_SEP)] if value != "" else []
 
@@ -217,6 +226,7 @@ def get_parser(from_file: bool = True) -> StrToTypeParser:
     from collections import Counter, OrderedDict, deque
 
     from strto.parsers import (
+        ArrayParser,
         BoolParser,
         Cast,
         DateParser,
@@ -268,6 +278,7 @@ def get_parser(from_file: bool = True) -> StrToTypeParser:
             datetime.date: DateParser(),
             datetime.time: TimeParser(),
             datetime.timedelta: TimedeltaParser(),
+            array.array: ArrayParser(),
         }
     )
     return parser
