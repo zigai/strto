@@ -1,3 +1,4 @@
+import array
 import ast
 import datetime
 import json
@@ -299,3 +300,72 @@ def test_int_parser_constant_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(parsers.IntParser.CONSTANTS, "ten", 10)
     parser = parsers.IntParser()
     assert parser.parse("ten") == 10
+
+
+def test_array_parser_with_explicit_type_code() -> None:
+    parser = parsers.ArrayParser(type_code="i")
+    result = parser("1,2,3")
+    assert result == array.array("i", [1, 2, 3])
+
+
+def test_array_parser_with_float_type_code() -> None:
+    parser = parsers.ArrayParser(type_code="d")
+    result = parser("1.5,2.5,3.5")
+    assert result == array.array("d", [1.5, 2.5, 3.5])
+
+
+def test_array_parser_infer_float_from_values() -> None:
+    parser = parsers.ArrayParser()
+    result = parser("1.5,2.5")
+    assert result.typecode == "d"
+    assert list(result) == [1.5, 2.5]
+
+
+def test_array_parser_infer_int_from_values() -> None:
+    parser = parsers.ArrayParser()
+    result = parser("1,2,3")
+    assert result.typecode == "l"
+    assert list(result) == [1, 2, 3]
+
+
+def test_array_parser_passthrough_existing_array() -> None:
+    parser = parsers.ArrayParser(type_code="i")
+    arr = array.array("i", [1, 2])
+    assert parser(arr) is arr
+
+
+def test_array_parser_invalid_value() -> None:
+    parser = parsers.ArrayParser(type_code="i")
+    with pytest.raises(ValueError):
+        parser("1,abc,3")
+
+
+def test_array_parser_custom_separator() -> None:
+    parser = parsers.ArrayParser(type_code="i", sep=";")
+    result = parser("1;2;3")
+    assert result == array.array("i", [1, 2, 3])
+
+
+def test_array_parser_ctypes_short() -> None:
+    import ctypes
+
+    type_code = parsers.ArrayParser.get_type_code(ctypes.c_short)
+    assert type_code == "h"
+    parser = parsers.ArrayParser(type_code=type_code)
+    result = parser("1,2,3")
+    assert result.typecode == "h"
+
+
+def test_array_parser_ctypes_ulonglong() -> None:
+    import ctypes
+
+    type_code = parsers.ArrayParser.get_type_code(ctypes.c_ulonglong)
+    assert type_code == "Q"
+
+
+def test_array_parser_get_type_code_none() -> None:
+    assert parsers.ArrayParser.get_type_code(None) is None
+
+
+def test_array_parser_get_type_code_unknown() -> None:
+    assert parsers.ArrayParser.get_type_code(str) is None

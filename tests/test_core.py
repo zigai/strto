@@ -94,3 +94,48 @@ def test_parse_literal_success_and_error() -> None:
 def test_parse_special_type_error(parser: StrToTypeParser) -> None:
     with pytest.raises(TypeError):
         parser.parse("some-bytes", bytes)
+
+
+def test_parse_array_with_int_annotation(parser: StrToTypeParser) -> None:
+    import array
+    import sys
+
+    if sys.version_info < (3, 12):
+        pytest.skip("array.array[T] not subscriptable before Python 3.12")
+
+    result = parser.parse("1,2,3", array.array[int])
+    assert result.typecode == "l"
+    assert list(result) == [1, 2, 3]
+
+
+def test_parse_array_with_float_annotation(parser: StrToTypeParser) -> None:
+    import array
+    import sys
+
+    if sys.version_info < (3, 12):
+        pytest.skip("array.array[T] not subscriptable before Python 3.12")
+
+    result = parser.parse("1.5,2.5,3.5", array.array[float])
+    assert result.typecode == "d"
+    assert list(result) == [1.5, 2.5, 3.5]
+
+
+def test_parse_array_with_ctypes_annotation(parser: StrToTypeParser) -> None:
+    import array
+    import ctypes
+    import sys
+
+    if sys.version_info < (3, 12):
+        pytest.skip("array.array[T] not subscriptable before Python 3.12")
+
+    result = parser.parse("1,2,3", array.array[ctypes.c_short])
+    assert result.typecode == "h"
+    assert list(result) == [1, 2, 3]
+
+
+def test_parse_bare_array_infers_from_values(parser: StrToTypeParser) -> None:
+    import array
+
+    result = parser.parse("1,2,3", array.array)
+    assert result.typecode == "l"
+    assert list(result) == [1, 2, 3]
