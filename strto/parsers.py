@@ -219,6 +219,28 @@ class DateParser(ParserBase[datetime.date]):
             ) from e
 
 
+class TimeParser(ParserBase[datetime.time]):
+    def parse(self, value: str) -> datetime.time:
+        try:
+            return dt.parse_datetime_str(value).time()
+        except Exception as e:
+            raise ValueError(
+                fmt_parser_err(value, datetime.time, "use common time formats like HH:MM:SS")
+            ) from e
+
+
+class TimedeltaParser(ParserBase[datetime.timedelta]):
+    def parse(self, value: str | int | float) -> datetime.timedelta:
+        if isinstance(value, (int, float)):
+            return datetime.timedelta(seconds=value)
+        try:
+            return datetime.timedelta(seconds=dt.hms_to_seconds(value))
+        except Exception as e:
+            raise ValueError(
+                fmt_parser_err(value, datetime.timedelta, "use formats like HH:MM:SS or seconds")
+            ) from e
+
+
 class SliceParser(ParserBase[slice]):
     def __init__(self, sep: str = SLICE_SEP) -> None:
         self.sep = sep
@@ -233,7 +255,9 @@ class SliceParser(ParserBase[slice]):
         if len(nums) not in (1, 2, 3):
             raise ValueError(
                 fmt_parser_err(
-                    value, slice, f"use 'start{self.sep}stop[{self.sep}step]' with 1-3 parts"
+                    value,
+                    slice,
+                    f"use 'start{self.sep}stop[{self.sep}step]' with 1-3 parts",
                 )
             )
         return slice(*nums)
@@ -253,7 +277,9 @@ class RangeParser(ParserBase[range]):
         if len(nums) not in (1, 2, 3):
             raise ValueError(
                 fmt_parser_err(
-                    value, range, f"use 'start{self.sep}stop[{self.sep}step]' with 1-3 parts"
+                    value,
+                    range,
+                    f"use 'start{self.sep}stop[{self.sep}step]' with 1-3 parts",
                 )
             )
         return range(*nums)
@@ -494,7 +520,9 @@ class BoolParser(ParserBase[bool]):
             valid_choices = sorted(self._true_synonyms | self._false_synonyms)
             raise ValueError(
                 fmt_parser_err(
-                    value, bool, "valid choices: " + ", ".join(repr(c) for c in valid_choices)
+                    value,
+                    bool,
+                    "valid choices: " + ", ".join(repr(c) for c in valid_choices),
                 )
             )
         raise TypeError(fmt_parser_err(value, bool, "expected bool, int, or str"))
@@ -543,6 +571,8 @@ __all__ = [
     "ParserBase",
     "DateParser",
     "DatetimeParser",
+    "TimeParser",
+    "TimedeltaParser",
     "FloatParser",
     "IntParser",
     "IterableParser",

@@ -150,11 +150,15 @@ class StrToTypeParser:
                 if len(parts) != expected_len:
                     raise ValueError(fmt_parser_err(value, t, f"expected {expected_len} items"))
                 return cast(
-                    T, tuple(self.parse(v, st) for v, st in zip(parts, sub_t, strict=False))
+                    T,
+                    tuple(self.parse(v, st) for v, st in zip(parts, sub_t, strict=False)),
                 )
 
             item_t = sub_t[0]  # iterables with single parameter, e.g., list[T], set[T]
-            return cast(T, base_t([self.parse(i.strip(), item_t) for i in value.split(ITER_SEP)]))
+            return cast(
+                T,
+                base_t([self.parse(i.strip(), item_t) for i in value.split(ITER_SEP)]),
+            )
 
         raise TypeError(fmt_parser_err(value, t, "unsupported generic alias"))
 
@@ -223,6 +227,8 @@ def get_parser(from_file: bool = True) -> StrToTypeParser:
         MappingParser,
         RangeParser,
         SliceParser,
+        TimedeltaParser,
+        TimeParser,
     )
 
     DIRECTLY_CASTABLE_TYPES = [
@@ -260,6 +266,8 @@ def get_parser(from_file: bool = True) -> StrToTypeParser:
             slice: SliceParser(),
             datetime.datetime: DatetimeParser(),
             datetime.date: DateParser(),
+            datetime.time: TimeParser(),
+            datetime.timedelta: TimedeltaParser(),
         }
     )
     return parser

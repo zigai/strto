@@ -1,4 +1,5 @@
 import ast
+import datetime
 import json
 from types import SimpleNamespace
 
@@ -133,6 +134,39 @@ def test_date_parser_error() -> None:
     parser = parsers.DateParser()
     with pytest.raises(ValueError):
         parser("not-a-date")
+
+
+def test_time_parser_success() -> None:
+    parser = parsers.TimeParser()
+    t = parser("12:34:56")
+    assert t.hour == 12
+    assert t.minute == 34
+    assert t.second == 56
+
+
+def test_time_parser_error() -> None:
+    parser = parsers.TimeParser()
+    with pytest.raises(ValueError):
+        parser("not-a-time")
+
+
+def test_timedelta_parser_numeric() -> None:
+    parser = parsers.TimedeltaParser()
+    assert parser("3600") == datetime.timedelta(hours=1)
+    assert parser(1800) == datetime.timedelta(minutes=30)
+    assert parser(90.5) == datetime.timedelta(seconds=90.5)
+
+
+def test_timedelta_parser_string_hms() -> None:
+    parser = parsers.TimedeltaParser()
+    assert parser("01:00:00") == datetime.timedelta(hours=1)
+    assert parser("00:30:00") == datetime.timedelta(minutes=30)
+
+
+def test_timedelta_parser_error() -> None:
+    parser = parsers.TimedeltaParser()
+    with pytest.raises(ValueError):
+        parser("invalid")
 
 
 def test_slice_parser_existing_slice() -> None:
