@@ -4,11 +4,12 @@ import datetime
 import json
 import math
 import os
+import shlex
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping
 from typing import Any, ClassVar, Generic, Literal, Protocol, TypeVar, overload
 
-from stdl import dt
+from stdl.dt import hms_to_seconds, parse_datetime_str
 from stdl.fs import File, json_load, yaml_load
 
 from strto.utils import fmt_parser_err
@@ -22,6 +23,107 @@ NumericType = TypeVar("NumericType", int, float)
 ITER_SEP = ","
 SLICE_SEP = ":"
 FROM_FILE_PREFIX = "@"
+
+
+def _split_kv_chunks(value: str) -> list[str]:
+    chunks: list[str] = []
+    buf: list[str] = []
+    in_single = False
+    in_double = False
+    escape = False
+    for ch in value:
+        if escape:
+            buf.append(ch)
+            escape = False
+            continue
+        if ch == "\\" and (in_single or in_double):
+            buf.append(ch)
+            escape = True
+            continue
+        if ch == "'" and not in_double:
+            in_single = not in_single
+            buf.append(ch)
+            continue
+        if ch == '"' and not in_single:
+            in_double = not in_double
+            buf.append(ch)
+            continue
+        if ch == ";" and not in_single and not in_double:
+            chunk = "".join(buf).strip()
+            if chunk:
+                chunks.append(chunk)
+            buf = []
+            continue
+        buf.append(ch)
+    chunk = "".join(buf).strip()
+    if chunk:
+        chunks.append(chunk)
+    return chunks
+
+
+def _set_nested_value(target: dict[str, Any], key: str, value: Any) -> None:
+    parts = key.split(".")
+    current: dict[str, Any] = target
+    for part in parts[:-1]:
+        existing = current.get(part)
+        if not isinstance(existing, dict):
+            existing = {}
+            current[part] = existing
+        current = existing
+    current[parts[-1]] = value
+
+
+def parse_kv_mapping(value: str) -> dict[str, Any]:
+    mapping: dict[str, Any] = {}
+    for chunk in _split_kv_chunks(value):
+        for token in shlex.split(chunk):
+            if "=" not in token:
+                raise ValueError(fmt_parser_err(token, "mapping", "expected key=value"))
+            key, raw = token.split("=", 1)
+            if not key:
+                raise ValueError(fmt_parser_err(token, "mapping", "expected non-empty key"))
+            raw = raw.strip()
+            if raw.startswith(("{", "[")):
+                try:
+                    parsed = json.loads(raw)
+                except ValueError:
+                    parsed = raw
+            else:
+                parsed = raw
+            _set_nested_value(mapping, key, parsed)
+    return mapping
+
+
+def load_data_from_file(path: str) -> Any:
+    if path.endswith((".yaml", ".yml")):
+        return yaml_load(path)
+    return json_load(path)
+
+
+def load_mapping_value(value: Any, *, from_file: bool = False) -> Mapping[str, Any]:
+    if isinstance(value, Mapping):
+        return value
+    if not isinstance(value, str):
+        raise TypeError(fmt_parser_err(value, "mapping", "expected string or mapping"))
+
+    text = value.strip()
+    if from_file and text.startswith(FROM_FILE_PREFIX):
+        filepath = text[len(FROM_FILE_PREFIX) :]
+        if os.path.isfile(filepath):
+            data = load_data_from_file(filepath)
+            if isinstance(data, Mapping):
+                return data
+            raise TypeError(fmt_parser_err(value, "mapping", "expected mapping in file"))
+        raise FileNotFoundError(fmt_parser_err(value, "mapping", "file not found"))
+
+    try:
+        parsed = json.loads(text)
+    except ValueError:
+        return parse_kv_mapping(text)
+
+    if not isinstance(parsed, Mapping):
+        raise TypeError(fmt_parser_err(value, "mapping", "expected JSON object"))
+    return parsed
 
 
 class Parser(Protocol[ParseResultType_co]):
@@ -203,7 +305,7 @@ class MappingParser(IterableParser[MappingType]):  # type: ignore[type-arg]
 class DatetimeParser(ParserBase[datetime.datetime]):
     def parse(self, value: str) -> datetime.datetime:
         try:
-            return dt.parse_datetime_str(value)
+            return parse_datetime_str(value)
         except Exception as e:
             raise ValueError(
                 fmt_parser_err(value, datetime.datetime, "use common date formats like YYYY-MM-DD")
@@ -213,7 +315,7 @@ class DatetimeParser(ParserBase[datetime.datetime]):
 class DateParser(ParserBase[datetime.date]):
     def parse(self, value: str) -> datetime.date:
         try:
-            return dt.parse_datetime_str(value).date()
+            return parse_datetime_str(value).date()
         except Exception as e:
             raise ValueError(
                 fmt_parser_err(value, datetime.date, "use common date formats like YYYY-MM-DD")
@@ -223,7 +325,7 @@ class DateParser(ParserBase[datetime.date]):
 class TimeParser(ParserBase[datetime.time]):
     def parse(self, value: str) -> datetime.time:
         try:
-            return dt.parse_datetime_str(value).time()
+            return parse_datetime_str(value).time()
         except Exception as e:
             raise ValueError(
                 fmt_parser_err(value, datetime.time, "use common time formats like HH:MM:SS")
@@ -235,7 +337,7 @@ class TimedeltaParser(ParserBase[datetime.timedelta]):
         if isinstance(value, (int, float)):
             return datetime.timedelta(seconds=value)
         try:
-            return datetime.timedelta(seconds=dt.hms_to_seconds(value))
+            return datetime.timedelta(seconds=hms_to_seconds(value))
         except Exception as e:
             raise ValueError(
                 fmt_parser_err(value, datetime.timedelta, "use formats like HH:MM:SS or seconds")
@@ -452,14 +554,16 @@ class IntParser(NumberParser[int]):
 
         if isinstance(value, int):
             return value
+        if isinstance(value, float):
+            raise TypeError(fmt_parser_err(value, int, "looks like a float"))
         if isinstance(value, str) and value in self.CONSTANTS:
             return self.CONSTANTS[value]
-        if "." in value:
+        if isinstance(value, str) and "." in value:
             raise ValueError(fmt_parser_err(value, int, "looks like a float"))
 
         try:
             return self._convert_value(value)
-        except ValueError:
+        except (ValueError, TypeError):
             pass
 
         return None
