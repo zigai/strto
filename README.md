@@ -54,7 +54,51 @@ Color.RED
 
 ```
 
-### Add custom parser
+### Automatic model parsing (dataclasses and pydantic v2)
+
+`strto` can parse dataclasses and pydantic v2 models from JSON, files, or key/value strings:
+
+```python
+from dataclasses import dataclass
+from strto import get_parser
+
+@dataclass
+class NetworkAddress:
+    host: str
+    port: int
+
+parser = get_parser()
+
+parser.parse('{"host":"localhost","port":5432}', NetworkAddress)
+parser.parse("host=localhost port=5432", NetworkAddress)
+parser.parse("@addr.yaml", NetworkAddress)
+```
+
+Nested models via dotted keys (or nested JSON):
+
+```python
+from dataclasses import dataclass
+
+@dataclass
+class NetworkAddress:
+    host: str
+    port: int
+
+@dataclass
+class ApplicationConfig:
+    debug: bool = False
+    network: NetworkAddress | None = None
+
+parser.parse(
+    "debug=true network.host=db network.port=5433",
+    ApplicationConfig,
+)
+```
+
+### Custom parser for alternative string formats
+
+If you want a non-standard string format (e.g., `host:port`), register a custom parser
+to override the default model parsing for that type.
 
 ```python
 from dataclasses import dataclass
