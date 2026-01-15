@@ -1,6 +1,6 @@
 [project]
 name = "strto"
-version = "0.2.4"
+version = "0.2.5"
 description = "Type-guided parsing library for converting strings to Python objects"
 authors = [{ name = "Žiga Ivanšek", email = "ziga.ivansek@gmail.com" }]
 license = { file = "LICENSE" }
@@ -35,7 +35,15 @@ keywords = [
 
 [project.optional-dependencies]
 test = ["pytest", "coverage", "pydantic>=2"]
-dev = ["pytest", "coverage", "ruff", "pre-commit", "codespell", "mypy", "pydantic>=2"]
+dev = [
+    "pytest",
+    "coverage",
+    "ruff",
+    "pre-commit",
+    "codespell",
+    "mypy",
+    "pydantic>=2",
+]
 
 [project.urls]
 Repository = "https://github.com/zigai/strto"
