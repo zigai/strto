@@ -137,3 +137,33 @@ def test_dataclass_bare_list_dict_json() -> None:
     config = parser.parse('{"payload":{"a":1},"tags":["a","b"]}', PayloadConfig)
     assert config.payload == {"a": 1}
     assert config.tags == ["a", "b"]
+
+
+class PlainConfig:
+    def __init__(self, host: str, port: int) -> None:
+        self.host = host
+        self.port = port
+
+
+class PlainAppConfig:
+    def __init__(self, debug: bool, database: PlainConfig) -> None:
+        self.debug = debug
+        self.database = database
+
+
+def test_plain_class_parsing_disabled_by_default() -> None:
+    parser = get_parser()
+    with pytest.raises(TypeError):
+        parser.parse("host=localhost port=5432", PlainConfig)
+
+
+def test_plain_class_parsing_enabled() -> None:
+    parser = get_parser(allow_class_init=True)
+    config = parser.parse(
+        "debug=true database.host=db database.port=5433",
+        PlainAppConfig,
+    )
+    assert config.debug is True
+    assert isinstance(config.database, PlainConfig)
+    assert config.database.host == "db"
+    assert config.database.port == 5433

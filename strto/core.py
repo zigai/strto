@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import array
+import builtins
 import dataclasses
 import enum
 import inspect
 import json
+import sys
+import typing
 from collections.abc import Callable, Iterable, Mapping
 from typing import Any, Generic, TypeVar, cast, get_type_hints
 
-import objinspect
+from objinspect import Class, Parameter
 from objinspect.constants import EMPTY as OBJ_EMPTY
 from objinspect.typing import (
     get_literal_choices,
@@ -47,9 +50,11 @@ class StrToTypeParser:
         parsers: dict[Any, Parser | Callable[[str], Any]] | None = None,
         *,
         from_file: bool = False,
+        allow_class_init: bool = False,
     ) -> None:
         self.parsers: dict[Any, Parser | Callable[[str], Any]] = parsers or {}
         self.from_file = from_file
+        self.allow_class_init = allow_class_init
 
     def __len__(self):
         return len(self.parsers)
@@ -78,6 +83,8 @@ class StrToTypeParser:
             if self._is_dataclass_type(t):
                 return True
             if self._is_pydantic_v2_model(t):
+                return True
+            if self.allow_class_init and self._is_class_init_parsable(t):
                 return True
             if is_generic_alias(t):
                 return self._is_generic_supported(t)
@@ -132,6 +139,8 @@ class StrToTypeParser:
             return cast(T, self._parse_dataclass(value, t))
         if self._is_pydantic_v2_model(t):
             return cast(T, self._parse_pydantic_v2(value, t))
+        if self.allow_class_init and self._is_class_init_parsable(t):
+            return cast(T, self._parse_class_init(value, t))
         if is_generic_alias(t):
             return cast(T, self._parse_alias(value, t))
         if is_union_type(t):
@@ -274,8 +283,19 @@ class StrToTypeParser:
             return False
         return issubclass(t, base)
 
-    def _get_init_params(self, t: type[Any]) -> list[objinspect.Parameter]:
-        cls_info = objinspect.Class(t)
+    def _is_class_init_parsable(self, t: Any) -> bool:
+        if not inspect.isclass(t):
+            return False
+        if self._is_dataclass_type(t) or self._is_pydantic_v2_model(t):
+            return False
+        if issubclass(t, enum.Enum):
+            return False
+        if t in (list, dict, set, tuple, frozenset):
+            return False
+        return True
+
+    def _get_init_params(self, t: type[Any]) -> list[Parameter]:
+        cls_info = Class(t)
         params = cls_info.init_args
         return params or []
 
@@ -286,7 +306,41 @@ class StrToTypeParser:
             try:
                 return get_type_hints(t)
             except (TypeError, NameError):
-                return dict(getattr(t, "__annotations__", {}) or {})
+                annotations = dict(getattr(t, "__annotations__", {}) or {})
+                return self._resolve_string_annotations(annotations, t)
+
+    def _resolve_string_annotations(
+        self,
+        annotations: Mapping[str, Any],
+        t: type[Any],
+    ) -> dict[str, Any]:
+        module = sys.modules.get(t.__module__)
+        module_ns = vars(module) if module is not None else {}
+        resolved: dict[str, Any] = {}
+        for name, annotation in annotations.items():
+            if isinstance(annotation, str):
+                if annotation in module_ns:
+                    resolved[name] = module_ns[annotation]
+                    continue
+                builtin = getattr(builtins, annotation, None)
+                if builtin is not None:
+                    resolved[name] = builtin
+                    continue
+            resolved[name] = annotation
+        return resolved
+
+    def _resolve_annotation(self, annotation: Any, t: type[Any]) -> Any:
+        if isinstance(annotation, typing.ForwardRef):
+            annotation = annotation.__forward_arg__
+        if isinstance(annotation, str):
+            module = sys.modules.get(t.__module__)
+            module_ns = vars(module) if module is not None else {}
+            if annotation in module_ns:
+                return module_ns[annotation]
+            builtin = getattr(builtins, annotation, None)
+            if builtin is not None:
+                return builtin
+        return annotation
 
     def _parse_dataclass(self, value: Any, t: type[T]) -> T:
         mapping = load_mapping_value(value, from_file=self.from_file)
@@ -357,6 +411,55 @@ class StrToTypeParser:
                 return raw
         return self.parse(raw, field_type)
 
+    def _parse_class_init(self, value: Any, t: type[T]) -> T:
+        mapping = load_mapping_value(value, from_file=self.from_file)
+        params = self._get_init_params(t)
+        class_hints = self._get_type_hints_for_class(t)
+
+        accepts_kwargs = any(param.kind == inspect.Parameter.VAR_KEYWORD for param in params)
+        parsed_kwargs: dict[str, Any] = {}
+        missing: list[str] = []
+
+        for param in params:
+            if param.kind == inspect.Parameter.VAR_POSITIONAL:
+                continue
+            if param.kind == inspect.Parameter.VAR_KEYWORD:
+                continue
+            param_type = param.type
+            if param_type is OBJ_EMPTY:
+                param_type = class_hints.get(param.name, Any)
+            else:
+                param_type = self._resolve_annotation(param_type, t)
+            if param_type is OBJ_EMPTY:
+                param_type = Any
+            if param.name in mapping:
+                parsed_kwargs[param.name] = self._parse_model_value(
+                    mapping[param.name],
+                    param_type,
+                )
+            elif param.default is OBJ_EMPTY:
+                if param.kind == inspect.Parameter.POSITIONAL_ONLY:
+                    missing.append(param.name)
+                else:
+                    missing.append(param.name)
+
+        if missing:
+            raise ValueError(
+                fmt_parser_err(
+                    value,
+                    t,
+                    f"missing required fields: {', '.join(missing)}",
+                )
+            )
+
+        if accepts_kwargs:
+            for key, raw in mapping.items():
+                if key in parsed_kwargs:
+                    continue
+                parsed_kwargs[key] = raw
+
+        return t(**parsed_kwargs)
+
 
 class _ParseFunc(Generic[T]):
     def __init__(self, parser: StrToTypeParser, t: type[T]) -> None:
@@ -370,7 +473,7 @@ class _ParseFunc(Generic[T]):
         return f"parser[{_format_type_for_repr(self._t)}]"
 
 
-def get_parser(from_file: bool = True) -> StrToTypeParser:
+def get_parser(from_file: bool = True, *, allow_class_init: bool = False) -> StrToTypeParser:
     import datetime
     import decimal
     import fractions
@@ -409,7 +512,7 @@ def get_parser(from_file: bool = True) -> StrToTypeParser:
     MAPPING_TYPES_CAST = [dict, OrderedDict, Counter]
     MAPPING_TYPES_UNPACK = []
 
-    parser = StrToTypeParser(from_file=from_file)
+    parser = StrToTypeParser(from_file=from_file, allow_class_init=allow_class_init)
     for t in DIRECTLY_CASTABLE_TYPES:
         parser.add(t, Cast(t))
     for t in MAPPING_TYPES_CAST:
