@@ -95,6 +95,20 @@ parser.parse(
 )
 ```
 
+Notes:
+
+- Key/value parsing supports dotted keys for nested objects.
+- Use JSON arrays/objects for complex values (e.g., lists of objects).
+- Pydantic support requires pydantic v2 to be installed.
+
+Optional: enable parsing for any class by inspecting `__init__` with `objinspect`:
+
+```python
+from strto import get_parser
+
+parser = get_parser(allow_class_init=True)
+```
+
 ### Custom parser for alternative string formats
 
 If you want a non-standard string format (e.g., `host:port`), register a custom parser
