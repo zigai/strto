@@ -1,6 +1,6 @@
 [project]
 name = "strto"
-version = "0.2.5"
+version = "0.2.6"
 description = "Type-guided parsing library for converting strings to Python objects"
 authors = [{ name = "Žiga Ivanšek", email = "ziga.ivansek@gmail.com" }]
 license = { file = "LICENSE" }
@@ -8,11 +8,14 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = ["stdl>=0.6.7", "objinspect>=0.4.0"]
 
+
 classifiers = [
     "License :: OSI Approved :: MIT License",
     "Typing :: Typed",
     "Operating System :: OS Independent",
     "Intended Audience :: Developers",
+    "Topic :: Text Processing",
+    "Topic :: Utilities",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
@@ -24,13 +27,15 @@ classifiers = [
 ]
 
 keywords = [
-    "strto",
     "python string to object",
     "python object parser",
     "parser",
     "python type hint parser",
     "python string parser",
     "string parsing",
+    "type-hints",
+    "type-conversion",
+    "parsing",
 ]
 
 [project.optional-dependencies]
