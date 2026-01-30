@@ -6,7 +6,7 @@ authors = [{ name = "Žiga Ivanšek", email = "ziga.ivansek@gmail.com" }]
 license = { file = "LICENSE" }
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["stdl>=0.6.7", "objinspect>=0.4.0"]
+dependencies = ["stdl>=0.6.8", "objinspect>=0.4.1"]
 
 
 classifiers = [
@@ -24,6 +24,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 
 keywords = [
@@ -64,7 +65,7 @@ features = ["test"]
 installer = "uv"
 
 [[tool.hatch.envs.test.matrix]]
-python = ["3.10", "3.11", "3.12", "3.13"]
+python = ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
 [tool.hatch.envs.test.scripts]
 test = "pytest {args}"
