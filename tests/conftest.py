@@ -9,6 +9,6 @@ if sys.version_info < (3, 12):
     collect_ignore.append("test_type_alias.py")
 
 
-@pytest.fixture()
+@pytest.fixture
 def parser() -> StrToTypeParser:
     return get_parser(from_file=True)
