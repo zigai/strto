@@ -333,16 +333,16 @@ wheels = [
 
 [[package]]
 name = "objinspect"
-version = "0.4.1"
+version = "0.4.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "docstring-parser" },
     { name = "stdl" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c6/2e/a4aca4661f5af2c04cd51b2e52aaec50ea4d42bd4f7b09365b92801f4608/objinspect-0.4.1.tar.gz", hash = "sha256:a153f3f3fed231c1eb9811e4f37f052d93cbeb942079f4e66bc1a40bf2e4b5c5", size = 53028, upload-time = "2026-01-30T18:29:35.791Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/da/64/21f287b7cbadcf61e85947554292e56d74e7877133b0e274f9faad27c222/objinspect-0.4.2.tar.gz", hash = "sha256:123c237ed6b89d0eec8cc8b394db071ff9fd5f2642558e3e95af0bcd630ae344", size = 54682, upload-time = "2026-02-24T18:05:02.78Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e8/32/76565b2f75bb7644bc6497f3a44fbc9e97bb59aa04d8a55a2e40e7de14e3/objinspect-0.4.1-py3-none-any.whl", hash = "sha256:1d0b12d2b965bbe740e10f4ac0e886dfcd86888a9d18259941c2ddc2f4e2fafd", size = 18733, upload-time = "2026-01-30T18:29:34.159Z" },
+    { url = "https://files.pythonhosted.org/packages/ab/8b/03357f48dc88771a57c9ed5cd3a3b255d0c21c88be09039bd157b9475ee2/objinspect-0.4.2-py3-none-any.whl", hash = "sha256:83e1166952cec32ced045e3f1017b6e28e3e286891487357bf1121ca71b7b1bc", size = 19891, upload-time = "2026-02-24T18:05:01.204Z" },
 ]
 
 [[package]]
@@ -670,7 +670,7 @@ wheels = [
 
 [[package]]
 name = "stdl"
-version = "0.6.8"
+version = "0.7.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "python-dateutil" },
@@ -678,14 +678,14 @@ dependencies = [
     { name = "toml" },
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3a/50/245055f1af5d34c7c2d19dfa36cb42c641ab4a954b44fb254af5302d48f6/stdl-0.6.8.tar.gz", hash = "sha256:cd1b501234880c193f45fed41dbc396accb9727643989030beaf67267c4b69bb", size = 93897, upload-time = "2026-01-30T18:01:28.009Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/57/60/c4304da6c517881f0977565eb894d8b2fee7ed58321b2fd4df1aef6ddf22/stdl-0.7.0.tar.gz", hash = "sha256:681a4ce8d162748238cf2323645de6e339e942a87e5da04ecb69bf8d2699f0b2", size = 94903, upload-time = "2026-02-23T16:06:03.5Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/53/9b/5e817a81e8d8019162ec14f832d4ed86e1cc5d55153c5eac6edb07925c24/stdl-0.6.8-py3-none-any.whl", hash = "sha256:57335a178332efd306c286bb8c52aa38d8558bf3b4bb938821ea86396c67664e", size = 36585, upload-time = "2026-01-30T18:01:26.901Z" },
+    { url = "https://files.pythonhosted.org/packages/a2/ed/29895ec67f671324e632d8b76518609c5ecb19c96394f10ce9af1a34e9c4/stdl-0.7.0-py3-none-any.whl", hash = "sha256:45891fd7d581f3800206bf3f4031bdf7b323e40c366d2bd4118600c31830b2ed", size = 37211, upload-time = "2026-02-23T16:06:02.269Z" },
 ]
 
 [[package]]
 name = "strto"
-version = "0.2.6"
+version = "0.2.7"
 source = { editable = "." }
 dependencies = [
     { name = "objinspect" },
@@ -719,14 +719,14 @@ requires-dist = [
     { name = "coverage", marker = "extra == 'dev'" },
     { name = "coverage", marker = "extra == 'test'" },
     { name = "mypy", marker = "extra == 'dev'" },
-    { name = "objinspect", specifier = ">=0.4.1" },
+    { name = "objinspect", specifier = ">=0.4.2" },
     { name = "pre-commit", marker = "extra == 'dev'" },
     { name = "pydantic", marker = "extra == 'dev'", specifier = ">=2" },
     { name = "pydantic", marker = "extra == 'test'", specifier = ">=2" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "pytest", marker = "extra == 'test'" },
     { name = "ruff", marker = "extra == 'dev'" },
-    { name = "stdl", specifier = ">=0.6.8" },
+    { name = "stdl", specifier = ">=0.7.0" },
 ]
 provides-extras = ["test", "dev"]
 
