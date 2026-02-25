@@ -106,6 +106,9 @@ ignore_missing_imports = true
 [tool.ruff]
 line-length = 100
 
+[tool.ruff.per-file-target-version]
+"tests/test_type_alias.py" = "py312"
+
 [tool.ruff.lint]
 select = [
     "F",       # Pyflakes
