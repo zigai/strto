@@ -203,7 +203,7 @@ class TestTuple:
         assert parser.parse("1,2.5,True", tuple[int, float, bool]) == (1, 2.5, True)
 
     def test_fixed_length_mismatch_raises(self, parser: StrToTypeParser):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="expected 3 items"):
             parser.parse("1,2", tuple[int, str, int])
 
 
@@ -268,7 +268,7 @@ class TestSlice:
         assert parser.parse("0:", slice) == slice(0, None)
         assert parser.parse("0:5:2", slice) == slice(0, 5, 2)
         assert parser.parse("::5", slice) == slice(None, None, 5)
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="1-3 parts"):
             parser.parse("0:5:2:4", slice)
 
 
@@ -276,17 +276,20 @@ class TestRange:
     def test_range(self, parser: StrToTypeParser):
         assert parser.parse("5", range) == range(5)
         assert parser.parse("5:6", range) == range(5, 6)
-        assert parser.parse("0:5", range) == range(0, 5)
-        assert parser.parse(":5", range) == range(0, 5)
+        assert parser.parse("0:5", range) == range(5)
+        assert parser.parse(":5", range) == range(5)
         assert parser.parse("5:", range) == range(5)
         assert parser.parse("0:5:2", range) == range(0, 5, 2)
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="1-3 parts"):
             parser.parse("0:5:2:4", range)
 
 
 class TestDatetime:
     def test_datetime(self, parser: StrToTypeParser):
-        date = datetime.datetime(year=2022, day=19, month=7)
+        date = datetime.datetime.combine(
+            datetime.date(year=2022, day=19, month=7),
+            datetime.time.min,
+        )
         assert parser.parse("2022.07.19", datetime.datetime) == date
         assert parser.parse("2022/07/19", datetime.datetime) == date
         assert parser.parse("19-7-2022", datetime.datetime) == date
@@ -313,6 +316,21 @@ class TestEnum:
         with pytest.raises(KeyError):
             parser.parse("D", MyEnum)
 
+    @pytest.mark.skipif(not hasattr(enum, "StrEnum"), reason="StrEnum requires Python 3.11+")
+    def test_str_enum_accepts_name_value_and_instance(self, parser: StrToTypeParser):
+        class MyStrEnum(enum.StrEnum):
+            RED = "red"
+            GREEN = "green"
+            BLUE = "blue"
+
+        assert parser.parse("RED", MyStrEnum) == MyStrEnum.RED
+        assert parser.parse("red", MyStrEnum) == MyStrEnum.RED
+        assert parser.parse(MyStrEnum.RED, MyStrEnum) == MyStrEnum.RED
+
+        with pytest.raises(KeyError) as exc:
+            parser.parse("nope", MyStrEnum)
+        assert "red" in str(exc.value)
+
 
 class TestLiteral:
     def test_literal(self, parser: StrToTypeParser):
@@ -320,10 +338,10 @@ class TestLiteral:
 
         MyLiteral = Literal[1, 2, 3]
         assert parser.parse("1", MyLiteral) == 1
-        assert parser.parse("False", Literal[True, False]) == False
+        assert parser.parse("False", Literal[True, False]) is False
         assert parser.parse(b"bytes", Literal[b"bytes", b"string"]) == b"bytes"
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="valid choices"):
             parser.parse("4", MyLiteral)
 
 
@@ -346,9 +364,9 @@ class TestBool:
         for v in ["false", "no", "n", "off", "0"]:
             assert parser.parse(v, bool) is False
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="valid choices"):
             parser.parse("True", bool)
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="valid choices"):
             parser.parse("False", bool)
 
 
@@ -374,44 +392,44 @@ class TestIsSupported:
         pass
 
     def test_basic_types(self, parser: StrToTypeParser):
-        assert parser.is_supported(int) == True
-        assert parser.is_supported(float) == True
-        assert parser.is_supported(str) == True
-        assert parser.is_supported(bool) == True
+        assert parser.is_supported(int) is True
+        assert parser.is_supported(float) is True
+        assert parser.is_supported(str) is True
+        assert parser.is_supported(bool) is True
 
-        assert parser.is_supported(self.UnsupportedType) == False
-        assert parser.is_supported(bytes) == False
+        assert parser.is_supported(self.UnsupportedType) is False
+        assert parser.is_supported(bytes) is False
 
     def test_generic_types(self, parser: StrToTypeParser):
-        assert parser.is_supported(list[int]) == True
-        assert parser.is_supported(list[float]) == True
-        assert parser.is_supported(list[str]) == True
-        assert parser.is_supported(dict[str, int]) == True
-        assert parser.is_supported(dict[str, float]) == True
-        assert parser.is_supported(set[int]) == True
+        assert parser.is_supported(list[int]) is True
+        assert parser.is_supported(list[float]) is True
+        assert parser.is_supported(list[str]) is True
+        assert parser.is_supported(dict[str, int]) is True
+        assert parser.is_supported(dict[str, float]) is True
+        assert parser.is_supported(set[int]) is True
 
-        assert parser.is_supported(list[self.UnsupportedType]) == False
-        assert parser.is_supported(dict[self.UnsupportedType, int]) == False
+        assert parser.is_supported(list[self.UnsupportedType]) is False
+        assert parser.is_supported(dict[self.UnsupportedType, int]) is False
 
-        assert parser.is_supported(tuple[int, ...]) == True
-        assert parser.is_supported(tuple[int, str]) == True
-        assert parser.is_supported(tuple[self.UnsupportedType, ...]) == False
-        assert parser.is_supported(tuple[int, self.UnsupportedType]) == False
+        assert parser.is_supported(tuple[int, ...]) is True
+        assert parser.is_supported(tuple[int, str]) is True
+        assert parser.is_supported(tuple[self.UnsupportedType, ...]) is False
+        assert parser.is_supported(tuple[int, self.UnsupportedType]) is False
 
     def test_union_types(self, parser: StrToTypeParser):
-        assert parser.is_supported(int | float) == True
-        assert parser.is_supported(str | int) == True
-        assert parser.is_supported(float | str) == True
+        assert parser.is_supported(int | float) is True
+        assert parser.is_supported(str | int) is True
+        assert parser.is_supported(float | str) is True
 
-        assert parser.is_supported(int | self.UnsupportedType) == True  # int is supported
-        assert parser.is_supported(self.UnsupportedType | bytes) == False
+        assert parser.is_supported(int | self.UnsupportedType) is True  # int is supported
+        assert parser.is_supported(self.UnsupportedType | bytes) is False
 
     def test_literal_types(self, parser: StrToTypeParser):
         from typing import Literal
 
-        assert parser.is_supported(Literal[1, 2, 3]) == True
-        assert parser.is_supported(Literal["a", "b", "c"]) == True
-        assert parser.is_supported(Literal[True, False]) == True
+        assert parser.is_supported(Literal[1, 2, 3]) is True
+        assert parser.is_supported(Literal["a", "b", "c"]) is True
+        assert parser.is_supported(Literal[True, False]) is True
 
     def test_enum_types(self, parser: StrToTypeParser):
         import enum
@@ -421,9 +439,9 @@ class TestIsSupported:
             GREEN = 2
             BLUE = 3
 
-        assert parser.is_supported(Color) == True
+        assert parser.is_supported(Color) is True
 
     def test_unsupported_types(self, parser: StrToTypeParser):
-        assert parser.is_supported(type) == False
-        assert parser.is_supported(object) == False
-        assert parser.is_supported(None) == False
+        assert parser.is_supported(type) is False
+        assert parser.is_supported(object) is False
+        assert parser.is_supported(None) is False

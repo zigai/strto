@@ -32,7 +32,7 @@ def test_parser_base_not_implemented() -> None:
 def test_cast_success_and_error() -> None:
     caster = parsers.Cast(int)
     assert caster("5") == 5
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="could not parse"):
         caster("not-int")
 
 
@@ -109,7 +109,7 @@ def test_mapping_parser_unpacked_mode() -> None:
 
 def test_mapping_parser_invalid_mode() -> None:
     parser = parsers.MappingParser(dict, mode="invalid")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Invalid mode"):
         parser(json.dumps({"a": 1}))
 
 
@@ -127,13 +127,13 @@ def test_mapping_parser_missing_file(tmp_path) -> None:
 
 def test_datetime_parser_error() -> None:
     parser = parsers.DatetimeParser()
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="use common date formats"):
         parser("not-a-date")
 
 
 def test_date_parser_error() -> None:
     parser = parsers.DateParser()
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="use common date formats"):
         parser("not-a-date")
 
 
@@ -147,7 +147,7 @@ def test_time_parser_success() -> None:
 
 def test_time_parser_error() -> None:
     parser = parsers.TimeParser()
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="use common time formats"):
         parser("not-a-time")
 
 
@@ -166,7 +166,7 @@ def test_timedelta_parser_string_hms() -> None:
 
 def test_timedelta_parser_error() -> None:
     parser = parsers.TimedeltaParser()
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="use formats like HH:MM:SS or seconds"):
         parser("invalid")
 
 
@@ -178,7 +178,7 @@ def test_slice_parser_existing_slice() -> None:
 
 def test_slice_parser_invalid_length() -> None:
     parser = parsers.SliceParser()
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="1-3 parts"):
         parser("1:2:3:4")
 
 
@@ -189,19 +189,19 @@ def test_range_parser_success() -> None:
 
 def test_int_parser_rejects_float_like() -> None:
     parser = parsers.IntParser()
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="looks like a float"):
         parser.parse("3.5")
 
 
 def test_int_parser_invalid_expression() -> None:
     parser = parsers.IntParser()
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="invalid expression or name"):
         parser.parse("(1,2)")
 
 
 def test_int_parser_no_expressions() -> None:
     parser = parsers.IntParser(allow_expressions=False)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="invalid integer value"):
         parser.parse("abc")
 
 
@@ -219,13 +219,13 @@ def test_int_parser_eval_binop_error() -> None:
 
 def test_float_parser_invalid_expression() -> None:
     parser = parsers.FloatParser()
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="invalid expression or name"):
         parser.parse("unknown_name")
 
 
 def test_float_parser_no_expressions() -> None:
     parser = parsers.FloatParser(allow_expressions=False)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="invalid float value"):
         parser.parse("1+2")
 
 
@@ -246,8 +246,9 @@ def test_bool_parser_synonyms_and_errors() -> None:
     assert parser("true") is True
     assert parser("false") is False
     assert parser(1) is True
-    assert parser(False) is False
-    with pytest.raises(ValueError):
+    false_value = False
+    assert parser(false_value) is False
+    with pytest.raises(ValueError, match="valid choices"):
         parser("maybe")
     with pytest.raises(TypeError):
         parser(3.14)  # type: ignore[arg-type]
@@ -258,13 +259,13 @@ def test_literal_parser_behaviour() -> None:
     assert parser("1") == 1
     assert parser("two") == "two"
     assert parser("true") is True
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="valid choices"):
         parser("missing")
 
 
 def test_literal_parser_empty_choices() -> None:
     parser = parsers.LiteralParser((), target_t="Choice")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="no valid Literal choices"):
         parser("anything")
 
 
@@ -336,7 +337,7 @@ def test_array_parser_passthrough_existing_array() -> None:
 
 def test_array_parser_invalid_value() -> None:
     parser = parsers.ArrayParser(type_code="i")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="invalid value for type code"):
         parser("1,abc,3")
 
 
