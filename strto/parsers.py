@@ -3,11 +3,11 @@ import ast
 import datetime
 import json
 import math
-import os
 import shlex
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping
-from typing import Any, ClassVar, Generic, Literal, Protocol, TypeVar, overload
+from pathlib import Path
+from typing import ClassVar, Generic, Literal, Protocol, TypeAlias, TypeVar, overload
 
 from stdl.dt import hms_to_seconds, parse_datetime_str
 from stdl.fs import File, json_load, yaml_load
@@ -19,6 +19,9 @@ ParseResultType_co = TypeVar("ParseResultType_co", covariant=True)
 IterableType = TypeVar("IterableType", bound="Iterable")
 MappingType = TypeVar("MappingType", bound="Mapping")
 NumericType = TypeVar("NumericType", int, float)
+JsonScalar: TypeAlias = str | int | float | bool | None
+JsonValue: TypeAlias = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
+JsonMapping: TypeAlias = dict[str, JsonValue]
 
 ITER_SEP = ","
 SLICE_SEP = ":"
@@ -61,9 +64,9 @@ def _split_kv_chunks(value: str) -> list[str]:
     return chunks
 
 
-def _set_nested_value(target: dict[str, Any], key: str, value: Any) -> None:
+def _set_nested_value(target: JsonMapping, key: str, value: JsonValue) -> None:
     parts = key.split(".")
-    current: dict[str, Any] = target
+    current: JsonMapping = target
     for part in parts[:-1]:
         existing = current.get(part)
         if not isinstance(existing, dict):
@@ -73,8 +76,8 @@ def _set_nested_value(target: dict[str, Any], key: str, value: Any) -> None:
     current[parts[-1]] = value
 
 
-def parse_kv_mapping(value: str) -> dict[str, Any]:
-    mapping: dict[str, Any] = {}
+def parse_kv_mapping(value: str) -> JsonMapping:
+    mapping: JsonMapping = {}
     for chunk in _split_kv_chunks(value):
         for token in shlex.split(chunk):
             if "=" not in token:
@@ -94,13 +97,13 @@ def parse_kv_mapping(value: str) -> dict[str, Any]:
     return mapping
 
 
-def load_data_from_file(path: str) -> Any:
+def load_data_from_file(path: str) -> object:
     if path.endswith((".yaml", ".yml")):
         return yaml_load(path)
     return json_load(path)
 
 
-def load_mapping_value(value: Any, *, from_file: bool = False) -> Mapping[str, Any]:
+def load_mapping_value(value: object, *, from_file: bool = False) -> Mapping[str, object]:
     if isinstance(value, Mapping):
         return value
     if not isinstance(value, str):
@@ -109,7 +112,7 @@ def load_mapping_value(value: Any, *, from_file: bool = False) -> Mapping[str, A
     text = value.strip()
     if from_file and text.startswith(FROM_FILE_PREFIX):
         filepath = text[len(FROM_FILE_PREFIX) :]
-        if os.path.isfile(filepath):
+        if Path(filepath).is_file():
             data = load_data_from_file(filepath)
             if isinstance(data, Mapping):
                 return data
@@ -128,7 +131,7 @@ def load_mapping_value(value: Any, *, from_file: bool = False) -> Mapping[str, A
 
 class Parser(Protocol[ParseResultType_co]):
     def __call__(self, value: str) -> ParseResultType_co: ...
-    def clean(self, value: Any) -> Any: ...
+    def clean(self, value: object) -> object: ...
     def parse(self, value: str) -> ParseResultType_co: ...
 
 
@@ -136,10 +139,10 @@ class ParserBase(ABC, Generic[ParseResultType]):
     """Abstract base class for runtime parser implementations."""
 
     def __call__(self, value: str) -> ParseResultType:
-        value = self.clean(value)
-        return self.parse(value)
+        cleaned = self.clean(value)
+        return self.parse(cleaned)
 
-    def clean(self, value: Any) -> Any:
+    def clean(self, value: object) -> object:
         if isinstance(value, str):
             return value.strip()
         return value
@@ -155,12 +158,12 @@ class Cast(ParserBase[ParseResultType]):
     def __init__(self, t: type[ParseResultType]) -> None:
         self.t = t
 
-    def clean(self, value: Any) -> Any:
+    def clean(self, value: object) -> object:
         if self.t is str:
             return value
         return super().clean(value)
 
-    def parse(self, value: Any) -> ParseResultType:
+    def parse(self, value: object) -> ParseResultType:
         if isinstance(value, self.t):
             return value
         try:
@@ -209,7 +212,7 @@ class IterableParser(ParserBase[IterableType]):
         if isinstance(value, str):
             if self.from_file and value.startswith(FROM_FILE_PREFIX):
                 filepath = value[len(FROM_FILE_PREFIX) :]
-                if os.path.isfile(filepath):
+                if Path(filepath).is_file():
                     value = self.read_from_file(filepath)
                 else:
                     raise FileNotFoundError(
@@ -276,7 +279,7 @@ class MappingParser(IterableParser[MappingType]):  # type: ignore[type-arg]
         if isinstance(value, str):
             if self.from_file and value.startswith(FROM_FILE_PREFIX):
                 filepath = value[len(FROM_FILE_PREFIX) :]
-                if os.path.isfile(filepath):
+                if Path(filepath).is_file():
                     value = self.read_from_file(filepath)
                 else:
                     raise FileNotFoundError(
@@ -287,16 +290,15 @@ class MappingParser(IterableParser[MappingType]):  # type: ignore[type-arg]
             if self.t is not None:
                 if self.mode == "cast":
                     return self.t(value)  # type: ignore[return-value]
-                elif self.mode == "unpack":
+                if self.mode == "unpack":
                     return self.t(**value)  # type: ignore[return-value]
-                else:
-                    raise ValueError(f"Invalid mode: {self.mode}")
+                raise ValueError(f"Invalid mode: {self.mode}")
             return value  # type: ignore[return-value]
         raise TypeError(
             fmt_parser_err(value, self.t or "mapping", "expected JSON string or @file path")
         )
 
-    def read_from_file(self, value: str) -> Mapping[str, Any]:  # type: ignore[override]
+    def read_from_file(self, value: str) -> Mapping[str, object]:  # type: ignore[override]
         if value.endswith((".yaml", ".yml")):
             return yaml_load(value)  # type: ignore[return-value]
         return json_load(value)  # type: ignore[return-value]
@@ -411,10 +413,7 @@ class ArrayParser(ParserBase[array.array]):  # type: ignore[type-arg]
             code = self._infer_type_code(parts)
 
         try:
-            if code in ("f", "d"):
-                parsed = [float(p) for p in parts]
-            else:
-                parsed = [int(p) for p in parts]
+            parsed = [float(p) for p in parts] if code in ("f", "d") else [int(p) for p in parts]
             return array.array(code, parsed)
         except ValueError as e:
             raise ValueError(
@@ -506,35 +505,39 @@ class NumberParser(ParserBase[NumericType]):
         """Safely evaluate an AST node with limited operations."""
         match node:
             case ast.Constant():
-                if isinstance(node.value, (int, float)):
-                    return self._convert_constant(node.value)
-                elif isinstance(node.value, str):
-                    if node.value in self.CONSTANTS:
-                        return self.CONSTANTS[node.value]  # type: ignore[return-value]
-                    else:
-                        raise TypeError(f"unsupported constant: '{node.value}'")
-                else:
-                    raise TypeError(f"unsupported constant type: {type(node.value)}")
+                return self._eval_constant_node(node)
             case ast.Name():
                 if node.id in self.CONSTANTS:
                     return self.CONSTANTS[node.id]  # type: ignore[return-value]
-                else:
-                    raise NameError(f"undefined name: '{node.id}'")
+                raise NameError(f"undefined name: '{node.id}'")
             case ast.BinOp():
                 left = self._eval_node(node.left)
                 right = self._eval_node(node.right)
                 return self._eval_binop(node.op, left, right)
             case ast.UnaryOp():
-                operand = self._eval_node(node.operand)
-                match node.op:
-                    case ast.UAdd():
-                        return +operand  # type: ignore[return-value]
-                    case ast.USub():
-                        return -operand  # type: ignore[return-value]
-                    case _:
-                        raise TypeError(f"unsupported unary operator: {type(node.op)}")
+                return self._eval_unary_op(node)
             case _:
                 raise TypeError(f"unsupported node type: {type(node)}")
+
+    def _eval_constant_node(self, node: ast.Constant) -> NumericType:
+        value = node.value
+        if isinstance(value, (int, float)):
+            return self._convert_constant(value)
+        if isinstance(value, str):
+            if value in self.CONSTANTS:
+                return self.CONSTANTS[value]  # type: ignore[return-value]
+            raise TypeError(f"unsupported constant: '{value}'")
+        raise TypeError(f"unsupported constant type: {type(value)}")
+
+    def _eval_unary_op(self, node: ast.UnaryOp) -> NumericType:
+        operand = self._eval_node(node.operand)
+        match node.op:
+            case ast.UAdd():
+                return +operand  # type: ignore[return-value]
+            case ast.USub():
+                return -operand  # type: ignore[return-value]
+            case _:
+                raise TypeError(f"unsupported unary operator: {type(node.op)}")
 
     def _convert_constant(self, value: float | int) -> NumericType:
         """Convert a constant value. To be implemented by subclasses."""
@@ -549,7 +552,7 @@ class IntParser(NumberParser[int]):
     CONSTANTS: ClassVar[dict[str, int]] = {}
 
     def _basic_parse(self, value: str) -> int | None:
-        """Override to reject float-like strings for union parsing"""
+        """Override to reject float-like strings for union parsing."""
         value = self.clean(value)
 
         if isinstance(value, int):
@@ -579,14 +582,13 @@ class IntParser(NumberParser[int]):
             try:
                 node = ast.parse(value, mode="eval")
                 result = self._eval_node(node.body)
-            except (SyntaxError, TypeError, NameError):
-                raise ValueError(fmt_parser_err(value, int, "invalid expression or name"))
-            except ZeroDivisionError:
-                raise ZeroDivisionError(fmt_parser_err(value, int, "division by zero"))
+            except (SyntaxError, TypeError, NameError) as err:
+                raise ValueError(fmt_parser_err(value, int, "invalid expression or name")) from err
+            except ZeroDivisionError as err:
+                raise ZeroDivisionError(fmt_parser_err(value, int, "division by zero")) from err
 
             return self._convert_result(result)
-        else:
-            raise ValueError(fmt_parser_err(value, int, "invalid integer value"))
+        raise ValueError(fmt_parser_err(value, int, "invalid integer value"))
 
     def _convert_value(self, value: str) -> int:
         return int(value)
@@ -597,27 +599,26 @@ class IntParser(NumberParser[int]):
     def _convert_result(self, result: float | int) -> int:
         if isinstance(result, (int, float)):
             return int(result)
-        else:
-            raise TypeError("expression does not evaluate to a number")
+        raise TypeError("expression does not evaluate to a number")
 
     def _eval_binop(self, op: ast.operator, left: int, right: int) -> int:
+        result: int | float
         match op:
             case ast.Add():
-                return left + right
+                result = left + right
             case ast.Sub():
-                return left - right
+                result = left - right
             case ast.Mult():
-                return left * right
-            case ast.Div():
-                return left // right
-            case ast.FloorDiv():
-                return left // right
+                result = left * right
+            case ast.Div() | ast.FloorDiv():
+                result = left // right
             case ast.Mod():
-                return left % right
+                result = left % right
             case ast.Pow():
-                return left**right
+                result = left**right
             case _:
                 raise TypeError(f"unsupported binary operator: {type(op)}")
+        return result  # type: ignore[return-value]
 
 
 class FloatParser(NumberParser[float]):
@@ -641,14 +642,15 @@ class FloatParser(NumberParser[float]):
             try:
                 node = ast.parse(value, mode="eval")
                 result = self._eval_node(node.body)
-            except (SyntaxError, TypeError, NameError):
-                raise ValueError(fmt_parser_err(value, float, "invalid expression or name"))
-            except ZeroDivisionError:
-                raise ZeroDivisionError(fmt_parser_err(value, float, "division by zero"))
+            except (SyntaxError, TypeError, NameError) as err:
+                raise ValueError(
+                    fmt_parser_err(value, float, "invalid expression or name")
+                ) from err
+            except ZeroDivisionError as err:
+                raise ZeroDivisionError(fmt_parser_err(value, float, "division by zero")) from err
 
             return self._convert_result(result)
-        else:
-            raise ValueError(fmt_parser_err(value, float, "invalid float value"))
+        raise ValueError(fmt_parser_err(value, float, "invalid float value"))
 
     def _convert_value(self, value: str) -> float:
         return float(value)
@@ -659,27 +661,28 @@ class FloatParser(NumberParser[float]):
     def _convert_result(self, result: float | int) -> float:
         if isinstance(result, (int, float)):
             return float(result)
-        else:
-            raise TypeError("expression does not evaluate to a number")
+        raise TypeError("expression does not evaluate to a number")
 
     def _eval_binop(self, op: ast.operator, left: float | int, right: float | int) -> float:
+        result: float | int
         match op:
             case ast.Add():
-                return left + right
+                result = left + right
             case ast.Sub():
-                return left - right
+                result = left - right
             case ast.Mult():
-                return left * right
+                result = left * right
             case ast.Div():
-                return left / right
+                result = left / right
             case ast.FloorDiv():
-                return left // right
+                result = left // right
             case ast.Mod():
-                return left % right
+                result = left % right
             case ast.Pow():
-                return left**right
+                result = left**right
             case _:
                 raise TypeError(f"unsupported binary operator: {type(op)}")
+        return result  # type: ignore[return-value]
 
 
 class BoolParser(ParserBase[bool]):
@@ -723,12 +726,12 @@ class LiteralParser(ParserBase[ParseResultType]):
         self,
         choices: tuple[ParseResultType, ...],
         *,
-        target_t: Any = None,
+        target_t: object | None = None,
     ) -> None:
         self._choices: list[ParseResultType] = list(choices)
         self._target_t = target_t
 
-    def parse(self, value: Any) -> ParseResultType:
+    def parse(self, value: object) -> ParseResultType:
         target = self._target_t or "Literal"
         choices = self._choices
 
@@ -749,7 +752,7 @@ class LiteralParser(ParserBase[ParseResultType]):
                     parsed = t(value)
                 if parsed in choices:
                     return parsed  # type: ignore[return-value]
-            except Exception:
+            except (TypeError, ValueError):
                 continue
 
         raise ValueError(fmt_parser_err(value, target, f"valid choices: {choices}"))
@@ -757,19 +760,19 @@ class LiteralParser(ParserBase[ParseResultType]):
 
 __all__ = [
     "ArrayParser",
+    "BoolParser",
     "Cast",
-    "Parser",
-    "ParserBase",
     "DateParser",
     "DatetimeParser",
-    "TimeParser",
-    "TimedeltaParser",
     "FloatParser",
     "IntParser",
     "IterableParser",
+    "LiteralParser",
     "MappingParser",
+    "Parser",
+    "ParserBase",
     "RangeParser",
     "SliceParser",
-    "BoolParser",
-    "LiteralParser",
+    "TimeParser",
+    "TimedeltaParser",
 ]

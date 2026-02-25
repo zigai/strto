@@ -3,7 +3,6 @@ import operator
 import sys
 import types
 import typing
-from typing import Any
 
 if sys.version_info >= (3, 12):
     from typing import TypeAliasType
@@ -11,33 +10,34 @@ else:
     TypeAliasType = None  # type: ignore[misc,assignment]
 
 
-def _type_display(t: Any) -> str:
+def _type_display(t: object) -> str:
     try:
-        return t.__name__
-    except Exception:
+        name = t.__name__  # type: ignore[attr-defined]
+    except AttributeError:
         return str(t)
+    return name if isinstance(name, str) else str(name)
 
 
-def fmt_parser_err(value: Any, target: Any, hint: str | None = None) -> str:
+def fmt_parser_err(value: object, target: object, hint: str | None = None) -> str:
     msg = f"could not parse {value!r} as {_type_display(target)}."
     if hint:
         msg += f" {hint}"
     return msg
 
 
-def is_type_alias(t: Any) -> bool:
+def is_type_alias(t: object) -> bool:
     if TypeAliasType is None:
         return False
     return isinstance(t, TypeAliasType)
 
 
-def _unwrap_type_alias(t: Any) -> Any:
+def _unwrap_type_alias(t: object) -> object:
     while is_type_alias(t):
         t = t.__value__  # type: ignore[union-attr]
     return t
 
 
-def _resolve_generic_type_args(t: Any) -> Any:
+def _resolve_generic_type_args(t: object) -> object:
     origin = typing.get_origin(t)
     if origin is None or origin is typing.Annotated:
         return t
@@ -46,7 +46,7 @@ def _resolve_generic_type_args(t: Any) -> Any:
     if not args:
         return t
 
-    resolved_args: list[Any] = []
+    resolved_args: list[object] = []
     changed = False
     for arg in args:
         if arg is Ellipsis:
@@ -66,7 +66,7 @@ def _resolve_generic_type_args(t: Any) -> Any:
     return origin[tuple(resolved_args)]
 
 
-def unwrap_type(t: Any) -> Any:
+def unwrap_type(t: object) -> object:
     t = _unwrap_type_alias(t)
 
     while typing.get_origin(t) is typing.Annotated:

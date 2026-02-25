@@ -9,7 +9,7 @@ import json
 import sys
 import typing
 from collections.abc import Callable, Iterable, Mapping
-from typing import Any, Generic, TypeVar, cast, get_type_hints
+from typing import Any, Generic, TypeVar, cast, get_type_hints, overload
 
 from objinspect import Class, Parameter
 from objinspect.constants import EMPTY as OBJ_EMPTY
@@ -35,9 +35,11 @@ from strto.parsers import (
 from strto.utils import unwrap_annotated
 
 T = TypeVar("T")
+_PARSE_MISSING = object()
+_BUILTIN_COLLECTION_TYPES = (list, dict, set, tuple, frozenset)
 
 
-def _format_type_for_repr(t: Any) -> str:
+def _format_type_for_repr(t: object) -> str:
     name = getattr(t, "__name__", None)
     if name:
         return name
@@ -56,7 +58,7 @@ class StrToTypeParser:
         self.from_file = from_file
         self.allow_class_init = allow_class_init
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.parsers)
 
     def __getitem__(self, t: type[T]) -> Parser | Callable[[str], T]:
@@ -74,102 +76,111 @@ class StrToTypeParser:
     def get_parse_func(self, t: type[T]) -> _ParseFunc[T]:
         return _ParseFunc(self, t)
 
-    def is_supported(self, t: type[T] | Any) -> bool:
+    def is_supported(self, t: object) -> bool:
         """Check if a type is supported for parsing."""
         t = unwrap_annotated(t)
         try:
-            if self.parsers.get(t, None):
-                return True
-            if self._is_dataclass_type(t):
-                return True
-            if self._is_pydantic_v2_model(t):
-                return True
-            if self.allow_class_init and self._is_class_init_parsable(t):
+            if self._is_directly_supported(t):
                 return True
             if is_generic_alias(t):
                 return self._is_generic_supported(t)
             if is_union_type(t):
                 return self._is_union_supported(t)
-            if is_direct_literal(t):
-                return True
-            if inspect.isclass(t) and issubclass(t, enum.Enum):
-                return True
         except (TypeError, ValueError):
             return False
-        else:
-            return False
+        return False
 
-    def _is_generic_supported(self, t: type[T]) -> bool:
+    def _is_directly_supported(self, t: object) -> bool:
+        if self.parsers.get(t, None):
+            return True
+        if self._is_dataclass_type(t) or self._is_pydantic_v2_model(t):
+            return True
+        if self.allow_class_init and self._is_class_init_parsable(t):
+            return True
+        if is_direct_literal(t):
+            return True
+        return inspect.isclass(t) and issubclass(t, enum.Enum)
+
+    def _is_generic_supported(self, t: object) -> bool:
         base_t = type_origin(t)
         sub_t = type_args(t)
 
         if is_mapping_type(base_t):
             key_type, value_type = sub_t
             return self.is_supported(key_type) and self.is_supported(value_type)
-        elif is_iterable_type(base_t):
-            if base_t is tuple:  # tuple[T] or tuple[T, ...] or fixed-length tuple[T1, T2, ...]
-                if not sub_t:
-                    return False
-                if len(sub_t) == 1:
-                    return self.is_supported(sub_t[0])
-                if len(sub_t) == 2 and sub_t[1] is Ellipsis:
-                    return self.is_supported(sub_t[0])
-                return all(self.is_supported(i) for i in sub_t)
-
-            if not sub_t:
-                return False
-            item_type = sub_t[0]
-            return self.is_supported(item_type)
+        if is_iterable_type(base_t):
+            return self._is_iterable_alias_supported(base_t, sub_t)
 
         return False
 
-    def _is_union_supported(self, t: type[T]) -> bool:
-        for arg in type_args(t):
-            if self.is_supported(arg):
-                return True
-        return False
+    def _is_iterable_alias_supported(self, base_t: object, sub_t: tuple[object, ...]) -> bool:
+        if base_t is tuple:  # tuple[T] or tuple[T, ...] or fixed-length tuple[T1, T2, ...]
+            return self._is_tuple_alias_supported(sub_t)
+        if not sub_t:
+            return False
+        return self.is_supported(sub_t[0])
 
-    def parse(self, value: Any, t: type[T] | Any) -> T:
+    def _is_tuple_alias_supported(self, sub_t: tuple[object, ...]) -> bool:
+        if not sub_t:
+            return False
+        if len(sub_t) == 1:
+            return self.is_supported(sub_t[0])
+        if len(sub_t) == 2 and sub_t[1] is Ellipsis:
+            return self.is_supported(sub_t[0])
+        return all(self.is_supported(item_t) for item_t in sub_t)
+
+    def _is_union_supported(self, t: object) -> bool:
+        return any(self.is_supported(arg) for arg in type_args(t))
+
+    @overload
+    def parse(self, value: object, t: type[T]) -> T: ...
+
+    @overload
+    def parse(self, value: object, t: object) -> object: ...
+
+    def parse(self, value: object, t: object) -> object:
         t = unwrap_annotated(t)
-        if t in (list, dict, set, tuple, frozenset) and isinstance(value, t):
-            return cast(T, value)
-        if parser := self.parsers.get(t, None):
-            return cast(T, parser(value))
-        if self._is_dataclass_type(t):
-            return cast(T, self._parse_dataclass(value, t))
-        if self._is_pydantic_v2_model(t):
-            return cast(T, self._parse_pydantic_v2(value, t))
-        if self.allow_class_init and self._is_class_init_parsable(t):
-            return cast(T, self._parse_class_init(value, t))
-        if is_generic_alias(t):
-            return cast(T, self._parse_alias(value, t))
-        if is_union_type(t):
-            return cast(T, self._parse_union(value, t))
-        if value is None:
-            return cast(T, None)
-        return cast(T, self._parse_special(value, t))
+        if self._is_passthrough_collection_instance(value, t):
+            return value
 
-    def _parse_alias(self, value: Any, t: type[T]) -> T:
+        parsed = self._parse_known_type(value, t)
+        if parsed is not _PARSE_MISSING:
+            return parsed
+        if value is None:
+            return None
+        return self._parse_special(value, t)
+
+    def _is_passthrough_collection_instance(self, value: object, t: object) -> bool:
+        return t in _BUILTIN_COLLECTION_TYPES and isinstance(value, t)
+
+    def _parse_known_type(self, value: object, t: object) -> object:
+        if parser := self.parsers.get(t, None):
+            return parser(value)
+        if self._is_dataclass_type(t):
+            return self._parse_dataclass(value, t)
+        if self._is_pydantic_v2_model(t):
+            return self._parse_pydantic_v2(value, t)
+        if self.allow_class_init and self._is_class_init_parsable(t):
+            return self._parse_class_init(value, t)
+        return self._parse_alias_or_union(value, t)
+
+    def _parse_alias_or_union(self, value: object, t: object) -> object:
+        if is_generic_alias(t):
+            return self._parse_alias(value, t)
+        if is_union_type(t):
+            return self._parse_union(value, t)
+        return _PARSE_MISSING
+
+    def _parse_alias(self, value: object, t: type[T]) -> T:
         base_t = type_origin(t)
         sub_t = type_args(t)
 
         if is_mapping_type(base_t):
             key_type, value_type = sub_t
-            mapping_instance = base_t()
-            if isinstance(value, Mapping):
-                items = value
-            elif isinstance(value, str):
-                try:
-                    items = json.loads(value)
-                except ValueError as e:
-                    raise ValueError(
-                        fmt_parser_err(value, t, "expected JSON string for mapping")
-                    ) from e
-            else:
-                raise TypeError(fmt_parser_err(value, t, "expected mapping or JSON string"))
-            for k, v in items.items():
-                mapping_instance[self.parse(k, key_type)] = self.parse(v, value_type)
-            return cast(T, mapping_instance)
+            return cast(
+                T,
+                self._parse_mapping_alias(value, t, base_t, key_type, value_type),
+            )
 
         if base_t is array.array:
             from strto.parsers import ArrayParser
@@ -180,83 +191,117 @@ class StrToTypeParser:
             return cast(T, parser(value))
 
         if is_iterable_type(base_t):
-            if isinstance(value, Mapping):
-                raise TypeError(fmt_parser_err(value, t, "expected iterable or string"))
-            if isinstance(value, str):
-                text = value.strip()
-                if text.startswith("["):
-                    try:
-                        parts = json.loads(text)
-                    except ValueError as e:
-                        raise ValueError(
-                            fmt_parser_err(value, t, "expected JSON array or iterable string")
-                        ) from e
-                elif self.from_file and text.startswith("@"):
-                    data = load_data_from_file(text[1:])
-                    parts = data
-                else:
-                    parts = [i.strip() for i in value.split(ITER_SEP)] if value != "" else []
-            elif isinstance(value, Iterable):
-                parts = list(value)
-            else:
-                raise TypeError(fmt_parser_err(value, t, "expected iterable or string"))
-
-            if base_t is tuple:
-                if not isinstance(parts, list):
-                    parts = list(parts)
-
-                if len(sub_t) == 1:  # tuple[T]
-                    item_t = sub_t[0]
-                    return cast(T, tuple(self.parse(i, item_t) for i in parts))
-
-                if len(sub_t) == 2 and sub_t[1] is Ellipsis:  # tuple[T, ...]
-                    item_t = sub_t[0]
-                    return cast(T, tuple(self.parse(i, item_t) for i in parts))
-
-                # fixed-length tuple
-                expected_len = len(sub_t)
-                if len(parts) != expected_len:
-                    raise ValueError(fmt_parser_err(value, t, f"expected {expected_len} items"))
-                return cast(
-                    T,
-                    tuple(self.parse(v, st) for v, st in zip(parts, sub_t, strict=False)),
-                )
-
-            if not isinstance(parts, list):
-                parts = list(parts)
-            item_t = sub_t[0]  # iterables with single parameter, e.g., list[T], set[T]
-            return cast(
-                T,
-                base_t([self.parse(i, item_t) for i in parts]),
-            )
+            return cast(T, self._parse_iterable_alias(value, t, base_t, sub_t))
 
         raise TypeError(fmt_parser_err(value, t, "unsupported generic alias"))
 
-    def _parse_union(self, value: str, t: type[T]) -> T:
-        for i in type_args(t):
+    def _parse_mapping_alias(
+        self,
+        value: object,
+        t: type[T],
+        base_t: object,
+        key_type: object,
+        value_type: object,
+    ) -> object:
+        mapping_instance = base_t()
+        items = cast(Mapping[object, object], self._load_mapping_alias_items(value, t))
+        for key, item_value in items.items():
+            mapping_instance[self.parse(key, key_type)] = self.parse(item_value, value_type)
+        return mapping_instance
+
+    def _load_mapping_alias_items(self, value: object, t: type[T]) -> object:
+        if isinstance(value, Mapping):
+            return value
+        if isinstance(value, str):
             try:
-                return cast(T, self.parse(value, i))
-            except (ValueError, TypeError, KeyError):
-                continue
-        tried = ", ".join([getattr(x, "__name__", str(x)) for x in type_args(t)])
+                return json.loads(value)
+            except ValueError as e:
+                raise ValueError(
+                    fmt_parser_err(value, t, "expected JSON string for mapping")
+                ) from e
+        raise TypeError(fmt_parser_err(value, t, "expected mapping or JSON string"))
+
+    def _parse_iterable_alias(
+        self,
+        value: object,
+        t: type[T],
+        base_t: object,
+        sub_t: tuple[object, ...],
+    ) -> object:
+        parts = self._load_iterable_alias_parts(value, t)
+
+        if base_t is tuple:
+            return self._parse_tuple_alias(parts, value, t, sub_t)
+
+        item_t = sub_t[0]  # iterables with single parameter, e.g., list[T], set[T]
+        return base_t([self.parse(item, item_t) for item in parts])
+
+    def _load_iterable_alias_parts(self, value: object, t: type[T]) -> list[object]:
+        if isinstance(value, Mapping):
+            raise TypeError(fmt_parser_err(value, t, "expected iterable or string"))
+        if isinstance(value, str):
+            text = value.strip()
+            if text.startswith("["):
+                try:
+                    loaded = json.loads(text)
+                except ValueError as e:
+                    raise ValueError(
+                        fmt_parser_err(value, t, "expected JSON array or iterable string")
+                    ) from e
+                return loaded if isinstance(loaded, list) else list(loaded)
+            if self.from_file and text.startswith("@"):
+                loaded = load_data_from_file(text[1:])
+                return loaded if isinstance(loaded, list) else list(loaded)
+            return [item.strip() for item in value.split(ITER_SEP)] if value != "" else []
+        if isinstance(value, Iterable):
+            return list(value)
+        raise TypeError(fmt_parser_err(value, t, "expected iterable or string"))
+
+    def _parse_tuple_alias(
+        self,
+        parts: list[object],
+        value: object,
+        t: type[T],
+        sub_t: tuple[object, ...],
+    ) -> tuple[object, ...]:
+        if len(sub_t) == 1:  # tuple[T]
+            item_t = sub_t[0]
+            return tuple(self.parse(item, item_t) for item in parts)
+
+        if len(sub_t) == 2 and sub_t[1] is Ellipsis:  # tuple[T, ...]
+            item_t = sub_t[0]
+            return tuple(self.parse(item, item_t) for item in parts)
+
+        expected_len = len(sub_t)  # fixed-length tuple
+        if len(parts) != expected_len:
+            raise ValueError(fmt_parser_err(value, t, f"expected {expected_len} items"))
+        return tuple(self.parse(item, item_t) for item, item_t in zip(parts, sub_t, strict=False))
+
+    def _parse_union(self, value: object, t: type[T]) -> T:
+        for member_t in type_args(t):
+            parsed = self._try_parse_union_value(value, member_t)
+            if parsed is not _PARSE_MISSING:
+                return cast(T, parsed)
+        tried = ", ".join(getattr(item_t, "__name__", str(item_t)) for item_t in type_args(t))
         raise ValueError(fmt_parser_err(value, t, f"tried types: {tried}"))
 
-    def _parse_special(self, value: str, t: type[T]) -> T:
-        """Parse enum or literal"""
-        if inspect.isclass(t):
-            if issubclass(t, enum.Enum):
-                try:
-                    return cast(T, t[value])
-                except KeyError as e:
-                    choices = list(t.__members__.keys())
-                    raise KeyError(fmt_parser_err(value, t, f"valid choices: {choices}")) from e
+    def _try_parse_union_value(self, value: object, t: object) -> object:
+        try:
+            return self.parse(value, t)
+        except (ValueError, TypeError, KeyError):
+            return _PARSE_MISSING
+
+    def _parse_special(self, value: object, t: object) -> object:
+        """Parse enum or literal."""
+        if inspect.isclass(t) and issubclass(t, enum.Enum):
+            return self._parse_enum(value, t)
 
         if is_direct_literal(t):
             parser = LiteralParser(
                 get_literal_choices(t),
                 target_t=t,
             )
-            return cast(T, parser(value))
+            return parser(value)
 
         raise TypeError(
             fmt_parser_err(
@@ -266,15 +311,51 @@ class StrToTypeParser:
             )
         )
 
-    def _is_dataclass_type(self, t: Any) -> bool:
+    def _parse_enum(self, value: object, t: type[enum.Enum]) -> enum.Enum:
+        if isinstance(value, t):
+            return value
+        if issubclass(t, str):
+            return self._parse_string_enum(value, t)
+        return self._parse_non_string_enum(value, t)
+
+    def _parse_string_enum(self, value: object, t: type[enum.Enum]) -> enum.Enum:
+        try:
+            return t(value)
+        except (TypeError, ValueError):
+            try:
+                return t[value]
+            except KeyError as e:
+                self._raise_enum_parse_err(value, t, e)
+                raise
+
+    def _parse_non_string_enum(self, value: object, t: type[enum.Enum]) -> enum.Enum:
+        try:
+            return t[value]
+        except KeyError:
+            try:
+                return t(value)
+            except (TypeError, ValueError) as e:
+                self._raise_enum_parse_err(value, t, e)
+                raise
+
+    def _raise_enum_parse_err(self, value: object, t: type[enum.Enum], exc: Exception) -> None:
+        name_choices = list(t.__members__.keys())
+        if issubclass(t, str):
+            value_choices = [member.value for member in t]
+            detail = f"valid values: {value_choices}; valid names: {name_choices}"
+        else:
+            detail = f"valid choices: {name_choices}"
+        raise KeyError(fmt_parser_err(value, t, detail)) from exc
+
+    def _is_dataclass_type(self, t: object) -> bool:
         return inspect.isclass(t) and dataclasses.is_dataclass(t)
 
-    def _is_pydantic_v2_model(self, t: Any) -> bool:
+    def _is_pydantic_v2_model(self, t: object) -> bool:
         if not inspect.isclass(t):
             return False
         try:
             import pydantic
-        except Exception:
+        except ImportError:
             return False
         base = getattr(pydantic, "BaseModel", None)
         if base is None:
@@ -283,16 +364,14 @@ class StrToTypeParser:
             return False
         return issubclass(t, base)
 
-    def _is_class_init_parsable(self, t: Any) -> bool:
+    def _is_class_init_parsable(self, t: object) -> bool:
         if not inspect.isclass(t):
             return False
         if self._is_dataclass_type(t) or self._is_pydantic_v2_model(t):
             return False
         if issubclass(t, enum.Enum):
             return False
-        if t in (list, dict, set, tuple, frozenset):
-            return False
-        return True
+        return t not in _BUILTIN_COLLECTION_TYPES
 
     def _get_init_params(self, t: type[Any]) -> list[Parameter]:
         cls_info = Class(t)
@@ -329,7 +408,7 @@ class StrToTypeParser:
             resolved[name] = annotation
         return resolved
 
-    def _resolve_annotation(self, annotation: Any, t: type[Any]) -> Any:
+    def _resolve_annotation(self, annotation: object, t: type[Any]) -> object:
         if isinstance(annotation, typing.ForwardRef):
             annotation = annotation.__forward_arg__
         if isinstance(annotation, str):
@@ -342,7 +421,7 @@ class StrToTypeParser:
                 return builtin
         return annotation
 
-    def _parse_dataclass(self, value: Any, t: type[T]) -> T:
+    def _parse_dataclass(self, value: object, t: type[T]) -> T:
         mapping = load_mapping_value(value, from_file=self.from_file)
         params = self._get_init_params(t)
         hints = self._get_type_hints_for_class(t)
@@ -374,7 +453,7 @@ class StrToTypeParser:
             )
         return t(**parsed_kwargs)
 
-    def _parse_pydantic_v2(self, value: Any, t: type[T]) -> T:
+    def _parse_pydantic_v2(self, value: object, t: type[T]) -> T:
         mapping = load_mapping_value(value, from_file=self.from_file)
 
         field_types: dict[str, Any] = {}
@@ -402,16 +481,15 @@ class StrToTypeParser:
 
         return t.model_validate(parsed)
 
-    def _parse_model_value(self, raw: Any, field_type: Any) -> Any:
+    def _parse_model_value(self, raw: object, field_type: object) -> object:
         field_type = unwrap_annotated(field_type)
         if field_type in (Any, OBJ_EMPTY):
             return raw
-        if field_type in (list, dict, set, tuple, frozenset):
-            if isinstance(raw, field_type):
-                return raw
+        if field_type in _BUILTIN_COLLECTION_TYPES and isinstance(raw, field_type):
+            return raw
         return self.parse(raw, field_type)
 
-    def _parse_class_init(self, value: Any, t: type[T]) -> T:
+    def _parse_class_init(self, value: object, t: type[T]) -> T:
         mapping = load_mapping_value(value, from_file=self.from_file)
         params = self._get_init_params(t)
         class_hints = self._get_type_hints_for_class(t)
@@ -421,27 +499,17 @@ class StrToTypeParser:
         missing: list[str] = []
 
         for param in params:
-            if param.kind == inspect.Parameter.VAR_POSITIONAL:
+            if self._should_skip_init_param(param):
                 continue
-            if param.kind == inspect.Parameter.VAR_KEYWORD:
-                continue
-            param_type = param.type
-            if param_type is OBJ_EMPTY:
-                param_type = class_hints.get(param.name, Any)
-            else:
-                param_type = self._resolve_annotation(param_type, t)
-            if param_type is OBJ_EMPTY:
-                param_type = Any
+            param_type = self._resolve_class_init_param_type(param, class_hints, t)
             if param.name in mapping:
                 parsed_kwargs[param.name] = self._parse_model_value(
                     mapping[param.name],
                     param_type,
                 )
-            elif param.default is OBJ_EMPTY:
-                if param.kind == inspect.Parameter.POSITIONAL_ONLY:
-                    missing.append(param.name)
-                else:
-                    missing.append(param.name)
+                continue
+            if param.default is OBJ_EMPTY:
+                missing.append(param.name)
 
         if missing:
             raise ValueError(
@@ -459,6 +527,22 @@ class StrToTypeParser:
                 parsed_kwargs[key] = raw
 
         return t(**parsed_kwargs)
+
+    def _should_skip_init_param(self, param: Parameter) -> bool:
+        return param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+
+    def _resolve_class_init_param_type(
+        self,
+        param: Parameter,
+        class_hints: Mapping[str, object],
+        t: type[T],
+    ) -> object:
+        param_type = param.type
+        if param_type is OBJ_EMPTY:
+            param_type = class_hints.get(param.name, Any)
+        else:
+            param_type = self._resolve_annotation(param_type, t)
+        return Any if param_type is OBJ_EMPTY else param_type
 
 
 class _ParseFunc(Generic[T]):
