@@ -12,7 +12,7 @@ from typing import ClassVar, Generic, Literal, Protocol, TypeAlias, TypeVar, ove
 from stdl.dt import hms_to_seconds, parse_datetime_str
 from stdl.fs import File, json_load, yaml_load
 
-from strto.utils import fmt_parser_err
+from strto.utils import ParseInput, TypeAnnotation, fmt_parser_err
 
 ParseResultType = TypeVar("ParseResultType")
 ParseResultType_co = TypeVar("ParseResultType_co", covariant=True)
@@ -89,21 +89,23 @@ def parse_kv_mapping(value: str) -> JsonMapping:
             if raw.startswith(("{", "[")):
                 try:
                     parsed = json.loads(raw)
-                except ValueError:
-                    parsed = raw
+                except ValueError as e:
+                    raise ValueError(
+                        fmt_parser_err(raw, "mapping", f"invalid JSON value for key {key!r}")
+                    ) from e
             else:
                 parsed = raw
             _set_nested_value(mapping, key, parsed)
     return mapping
 
 
-def load_data_from_file(path: str) -> object:
+def load_data_from_file(path: str) -> JsonValue:
     if path.endswith((".yaml", ".yml")):
         return yaml_load(path)
     return json_load(path)
 
 
-def load_mapping_value(value: object, *, from_file: bool = False) -> Mapping[str, object]:
+def load_mapping_value(value: ParseInput, *, from_file: bool = False) -> Mapping[str, ParseInput]:
     if isinstance(value, Mapping):
         return value
     if not isinstance(value, str):
@@ -131,7 +133,7 @@ def load_mapping_value(value: object, *, from_file: bool = False) -> Mapping[str
 
 class Parser(Protocol[ParseResultType_co]):
     def __call__(self, value: str) -> ParseResultType_co: ...
-    def clean(self, value: object) -> object: ...
+    def clean(self, value: ParseInput) -> ParseInput: ...
     def parse(self, value: str) -> ParseResultType_co: ...
 
 
@@ -142,7 +144,7 @@ class ParserBase(ABC, Generic[ParseResultType]):
         cleaned = self.clean(value)
         return self.parse(cleaned)
 
-    def clean(self, value: object) -> object:
+    def clean(self, value: ParseInput) -> ParseInput:
         if isinstance(value, str):
             return value.strip()
         return value
@@ -158,12 +160,12 @@ class Cast(ParserBase[ParseResultType]):
     def __init__(self, t: type[ParseResultType]) -> None:
         self.t = t
 
-    def clean(self, value: object) -> object:
+    def clean(self, value: ParseInput) -> ParseInput:
         if self.t is str:
             return value
         return super().clean(value)
 
-    def parse(self, value: object) -> ParseResultType:
+    def parse(self, value: ParseInput) -> ParseResultType:
         if isinstance(value, self.t):
             return value
         try:
@@ -298,7 +300,7 @@ class MappingParser(IterableParser[MappingType]):  # type: ignore[type-arg]
             fmt_parser_err(value, self.t or "mapping", "expected JSON string or @file path")
         )
 
-    def read_from_file(self, value: str) -> Mapping[str, object]:  # type: ignore[override]
+    def read_from_file(self, value: str) -> Mapping[str, ParseInput]:
         if value.endswith((".yaml", ".yml")):
             return yaml_load(value)  # type: ignore[return-value]
         return json_load(value)  # type: ignore[return-value]
@@ -432,8 +434,8 @@ class SliceParser(ParserBase[slice]):
     def __init__(self, sep: str = SLICE_SEP) -> None:
         self.sep = sep
 
-    def _get_nums(self, value: str) -> list[float | None]:
-        return [float(i) if i else None for i in value.split(self.sep)]
+    def _get_nums(self, value: str) -> list[int | None]:
+        return [int(i) if i else None for i in value.split(self.sep)]
 
     def parse(self, value: str | slice) -> slice:
         if isinstance(value, slice):
@@ -695,7 +697,7 @@ class BoolParser(ParserBase[bool]):
         self._true_synonyms = true_synonyms or {"1", "true", "yes", "y", "on"}
         self._false_synonyms = false_synonyms or {"0", "false", "no", "n", "off"}
         self._case_sensitive = case_sensitive
-        if case_sensitive:
+        if not case_sensitive:
             self._true_synonyms = {s.lower() for s in self._true_synonyms}
             self._false_synonyms = {s.lower() for s in self._false_synonyms}
 
@@ -726,12 +728,12 @@ class LiteralParser(ParserBase[ParseResultType]):
         self,
         choices: tuple[ParseResultType, ...],
         *,
-        target_t: object | None = None,
+        target_t: TypeAnnotation | None = None,
     ) -> None:
         self._choices: list[ParseResultType] = list(choices)
         self._target_t = target_t
 
-    def parse(self, value: object) -> ParseResultType:
+    def parse(self, value: ParseInput) -> ParseResultType:
         target = self._target_t or "Literal"
         choices = self._choices
 
@@ -759,6 +761,7 @@ class LiteralParser(ParserBase[ParseResultType]):
 
 
 __all__ = [
+    "ITER_SEP",
     "ArrayParser",
     "BoolParser",
     "Cast",
@@ -775,4 +778,6 @@ __all__ = [
     "SliceParser",
     "TimeParser",
     "TimedeltaParser",
+    "load_data_from_file",
+    "load_mapping_value",
 ]
