@@ -117,6 +117,7 @@ class StrToTypeParser:
         if is_iterable_type(base_t):
             if not self._is_constructible_generic_base(base_t):
                 return False
+
             return self._is_iterable_alias_supported(base_t, sub_t)
 
         return False
@@ -283,10 +284,13 @@ class StrToTypeParser:
                     raise ValueError(
                         fmt_parser_err(value, t, "expected JSON array or iterable string")
                     ) from e
+
                 return loaded if isinstance(loaded, list) else list(loaded)
+
             if self.from_file and text.startswith("@"):
                 loaded = load_data_from_file(text[1:])
                 return loaded if isinstance(loaded, list) else list(loaded)
+
             return [item.strip() for item in value.split(ITER_SEP)] if value != "" else []
 
         if isinstance(value, Iterable):

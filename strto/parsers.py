@@ -59,7 +59,9 @@ def _split_kv_chunks(value: str) -> list[str]:
             chunk = "".join(buf).strip()
             if chunk:
                 chunks.append(chunk)
+
             buf = []
+
             continue
         buf.append(ch)
     chunk = "".join(buf).strip()
@@ -315,6 +317,7 @@ class MappingParser(IterableParser[MappingType]):  # type: ignore[type-arg]
                     return self.t(value)  # type: ignore[return-value]
                 if self.mode == "unpack":
                     return self.t(**value)  # type: ignore[return-value]
+
                 raise ValueError(f"Invalid mode: {self.mode}")
 
             return value  # type: ignore[return-value]
@@ -562,6 +565,7 @@ class NumberParser(ParserBase[NumericType]):
         if isinstance(value, str):
             if value in self.CONSTANTS:
                 return self.CONSTANTS[value]  # type: ignore[return-value]
+
             raise TypeError(f"unsupported constant: '{value}'")
 
         raise TypeError(f"unsupported constant type: {type(value)}")
@@ -754,9 +758,12 @@ class BoolParser(ParserBase[bool]):
             key = value if self._case_sensitive else value.lower()
             if key in self._true_synonyms:
                 return True
+
             if key in self._false_synonyms:
                 return False
+
             valid_choices = sorted(self._true_synonyms | self._false_synonyms)
+
             raise ValueError(
                 fmt_parser_err(
                     value,
