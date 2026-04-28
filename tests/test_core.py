@@ -48,6 +48,7 @@ def test_is_supported_handles_error(monkeypatch: pytest.MonkeyPatch) -> None:
     def boom(t: typing.Any) -> bool:
         if t is sentinel:
             raise TypeError
+
         return False
 
     parser = core.StrToTypeParser()
@@ -83,6 +84,7 @@ def test_parse_alias_unsupported_origin() -> None:
 def test_parse_union_error(parser: StrToTypeParser) -> None:
     with pytest.raises(ValueError, match="tried types") as exc:
         parser.parse("not-a-number", int | float)
+
     assert "tried types" in str(exc.value)
 
 
@@ -90,6 +92,7 @@ def test_parse_enum_success_and_error() -> None:
     parser = core.StrToTypeParser()
     parser.add(str, lambda v: v)
     assert parser.parse("RED", Choice) is Choice.RED
+
     with pytest.raises(KeyError):
         parser.parse("MISSING", Choice)
 
@@ -98,6 +101,7 @@ def test_parse_literal_success_and_error() -> None:
     parser = core.StrToTypeParser()
     parser.add(int, int)
     assert parser.parse("1", typing.Literal[1, 2]) == 1
+
     with pytest.raises(ValueError, match="valid choices"):
         parser.parse("nope", typing.Literal[1, 2])
 

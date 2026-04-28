@@ -32,6 +32,7 @@ def test_parser_base_not_implemented() -> None:
 def test_cast_success_and_error() -> None:
     caster = parsers.Cast(int)
     assert caster("5") == 5
+
     with pytest.raises(ValueError, match="could not parse"):
         caster("not-int")
 
@@ -258,8 +259,10 @@ def test_bool_parser_synonyms_and_errors() -> None:
     assert parser(1) is True
     false_value = False
     assert parser(false_value) is False
+
     with pytest.raises(ValueError, match="valid choices"):
         parser("maybe")
+
     with pytest.raises(TypeError):
         parser(3.14)  # type: ignore[arg-type]
 
@@ -272,6 +275,7 @@ def test_bool_parser_custom_synonyms_case_sensitive() -> None:
     )
     assert parser("YES") is True
     assert parser("NO") is False
+
     with pytest.raises(ValueError, match="valid choices"):
         parser("yes")
 
@@ -295,6 +299,7 @@ def test_literal_parser_behaviour() -> None:
     assert parser("1") == 1
     assert parser("two") == "two"
     assert parser("true") is True
+
     with pytest.raises(ValueError, match="valid choices"):
         parser("missing")
 
@@ -309,10 +314,13 @@ def test_number_parser_not_implemented() -> None:
     number_parser = parsers.NumberParser()
     with pytest.raises(NotImplementedError):
         number_parser.parse("1")
+
     with pytest.raises(NotImplementedError):
         number_parser._convert_value("1")
+
     with pytest.raises(NotImplementedError):
         number_parser._convert_constant(1)
+
     with pytest.raises(NotImplementedError):
         number_parser._eval_binop(ast.Add(), 1, 2)
 
@@ -323,12 +331,16 @@ def test_number_parser_eval_node_behaviour() -> None:
         parsers.FloatParser.CONSTANTS["pi"]
     )
     assert parser._eval_node(ast.UnaryOp(op=ast.UAdd(), operand=ast.Constant(2))) == 2.0
+
     with pytest.raises(TypeError):
         parser._eval_node(ast.Constant("not_const"))
+
     with pytest.raises(TypeError):
         parser._eval_node(ast.Constant(None))
+
     with pytest.raises(TypeError):
         parser._eval_node(ast.UnaryOp(op=ast.Not(), operand=ast.Constant(1)))
+
     with pytest.raises(TypeError):
         parser._eval_node(ast.List(elts=[], ctx=ast.Load()))
 

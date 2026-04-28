@@ -39,18 +39,22 @@ def _split_kv_chunks(value: str) -> list[str]:
             buf.append(ch)
             escape = False
             continue
+
         if ch == "\\" and (in_single or in_double):
             buf.append(ch)
             escape = True
             continue
+
         if ch == "'" and not in_double:
             in_single = not in_single
             buf.append(ch)
             continue
+
         if ch == '"' and not in_single:
             in_double = not in_double
             buf.append(ch)
             continue
+
         if ch == ";" and not in_single and not in_double:
             chunk = "".join(buf).strip()
             if chunk:
@@ -61,6 +65,7 @@ def _split_kv_chunks(value: str) -> list[str]:
     chunk = "".join(buf).strip()
     if chunk:
         chunks.append(chunk)
+
     return chunks
 
 
@@ -73,6 +78,7 @@ def _set_nested_value(target: JsonMapping, key: str, value: JsonValue) -> None:
             existing = {}
             current[part] = existing
         current = existing
+
     current[parts[-1]] = value
 
 
@@ -82,6 +88,7 @@ def parse_kv_mapping(value: str) -> JsonMapping:
         for token in shlex.split(chunk):
             if "=" not in token:
                 raise ValueError(fmt_parser_err(token, "mapping", "expected key=value"))
+
             key, raw = token.split("=", 1)
             if not key:
                 raise ValueError(fmt_parser_err(token, "mapping", "expected non-empty key"))
@@ -95,13 +102,16 @@ def parse_kv_mapping(value: str) -> JsonMapping:
                     ) from e
             else:
                 parsed = raw
+
             _set_nested_value(mapping, key, parsed)
+
     return mapping
 
 
 def load_data_from_file(path: str) -> JsonValue:
     if path.endswith((".yaml", ".yml")):
         return yaml_load(path)
+
     return json_load(path)
 
 
@@ -118,7 +128,9 @@ def load_mapping_value(value: ParseInput, *, from_file: bool = False) -> Mapping
             data = load_data_from_file(filepath)
             if isinstance(data, Mapping):
                 return data
+
             raise TypeError(fmt_parser_err(value, "mapping", "expected mapping in file"))
+
         raise FileNotFoundError(fmt_parser_err(value, "mapping", "file not found"))
 
     try:
@@ -128,6 +140,7 @@ def load_mapping_value(value: ParseInput, *, from_file: bool = False) -> Mapping
 
     if not isinstance(parsed, Mapping):
         raise TypeError(fmt_parser_err(value, "mapping", "expected JSON object"))
+
     return parsed
 
 
@@ -147,6 +160,7 @@ class ParserBase(ABC, Generic[ParseResultType]):
     def clean(self, value: ParseInput) -> ParseInput:
         if isinstance(value, str):
             return value.strip()
+
         return value
 
     @abstractmethod
@@ -163,11 +177,13 @@ class Cast(ParserBase[ParseResultType]):
     def clean(self, value: ParseInput) -> ParseInput:
         if self.t is str:
             return value
+
         return super().clean(value)
 
     def parse(self, value: ParseInput) -> ParseResultType:
         if isinstance(value, self.t):
             return value
+
         try:
             return self.t(value)
         except Exception as e:
@@ -228,14 +244,17 @@ class IterableParser(ParserBase[IterableType]):
             raise TypeError(
                 fmt_parser_err(value, self.t or "iterable", "expected string or Iterable")
             )
+
         if self.t is not None:
             return self.t(value)  # type: ignore[return-value]
+
         return value  # type: ignore[return-value]
 
     def read_from_file(self, value: str) -> list[str]:
         data = File(value).should_exist().splitlines()
         if len(data) == 1 and self.sep in data[0]:
             data = data[0].split(self.sep)
+
         return [i.strip() for i in data]
 
 
@@ -275,6 +294,7 @@ class MappingParser(IterableParser[MappingType]):  # type: ignore[type-arg]
         from_file: bool = False,
     ) -> None:
         super().__init__(t, sep, from_file)  # type: ignore[arg-type]
+
         self.mode = mode
 
     def parse(self, value: str) -> MappingType:  # type: ignore[override]
@@ -289,13 +309,16 @@ class MappingParser(IterableParser[MappingType]):  # type: ignore[type-arg]
                     )
             else:
                 value = json.loads(value)
+
             if self.t is not None:
                 if self.mode == "cast":
                     return self.t(value)  # type: ignore[return-value]
                 if self.mode == "unpack":
                     return self.t(**value)  # type: ignore[return-value]
                 raise ValueError(f"Invalid mode: {self.mode}")
+
             return value  # type: ignore[return-value]
+
         raise TypeError(
             fmt_parser_err(value, self.t or "mapping", "expected JSON string or @file path")
         )
@@ -303,6 +326,7 @@ class MappingParser(IterableParser[MappingType]):  # type: ignore[type-arg]
     def read_from_file(self, value: str) -> Mapping[str, ParseInput]:
         if value.endswith((".yaml", ".yml")):
             return yaml_load(value)  # type: ignore[return-value]
+
         return json_load(value)  # type: ignore[return-value]
 
 
@@ -340,6 +364,7 @@ class TimedeltaParser(ParserBase[datetime.timedelta]):
     def parse(self, value: str | int | float) -> datetime.timedelta:
         if isinstance(value, (int, float)):
             return datetime.timedelta(seconds=value)
+
         try:
             return datetime.timedelta(seconds=hms_to_seconds(value))
         except Exception as e:
@@ -385,6 +410,7 @@ class ArrayParser(ParserBase[array.array]):  # type: ignore[type-arg]
                 ctypes.c_double: "d",  # double
                 ctypes.c_wchar: "w",  # unicode character
             }
+
         return cls._CTYPES_MAP
 
     @classmethod
@@ -394,6 +420,7 @@ class ArrayParser(ParserBase[array.array]):  # type: ignore[type-arg]
             return None
         if t in cls.TYPE_CODE_MAP:
             return cls.TYPE_CODE_MAP[t]
+
         return cls._get_ctypes_map().get(t)
 
     def __init__(
@@ -427,6 +454,7 @@ class ArrayParser(ParserBase[array.array]):  # type: ignore[type-arg]
         for p in parts:
             if "." in p:
                 return "d"
+
         return "l"
 
 
@@ -440,6 +468,7 @@ class SliceParser(ParserBase[slice]):
     def parse(self, value: str | slice) -> slice:
         if isinstance(value, slice):
             return value
+
         nums = self._get_nums(value)
         if len(nums) not in (1, 2, 3):
             raise ValueError(
@@ -449,6 +478,7 @@ class SliceParser(ParserBase[slice]):
                     f"use 'start{self.sep}stop[{self.sep}step]' with 1-3 parts",
                 )
             )
+
         return slice(*nums)
 
 
@@ -462,6 +492,7 @@ class RangeParser(ParserBase[range]):
     def parse(self, value: str | range) -> range:
         if isinstance(value, range):
             return value
+
         nums = self._get_nums(value)
         if len(nums) not in (1, 2, 3):
             raise ValueError(
@@ -471,6 +502,7 @@ class RangeParser(ParserBase[range]):
                     f"use 'start{self.sep}stop[{self.sep}step]' with 1-3 parts",
                 )
             )
+
         return range(*nums)
 
 
@@ -511,6 +543,7 @@ class NumberParser(ParserBase[NumericType]):
             case ast.Name():
                 if node.id in self.CONSTANTS:
                     return self.CONSTANTS[node.id]  # type: ignore[return-value]
+
                 raise NameError(f"undefined name: '{node.id}'")
             case ast.BinOp():
                 left = self._eval_node(node.left)
@@ -525,10 +558,12 @@ class NumberParser(ParserBase[NumericType]):
         value = node.value
         if isinstance(value, (int, float)):
             return self._convert_constant(value)
+
         if isinstance(value, str):
             if value in self.CONSTANTS:
                 return self.CONSTANTS[value]  # type: ignore[return-value]
             raise TypeError(f"unsupported constant: '{value}'")
+
         raise TypeError(f"unsupported constant type: {type(value)}")
 
     def _eval_unary_op(self, node: ast.UnaryOp) -> NumericType:
@@ -590,6 +625,7 @@ class IntParser(NumberParser[int]):
                 raise ZeroDivisionError(fmt_parser_err(value, int, "division by zero")) from err
 
             return self._convert_result(result)
+
         raise ValueError(fmt_parser_err(value, int, "invalid integer value"))
 
     def _convert_value(self, value: str) -> int:
@@ -601,6 +637,7 @@ class IntParser(NumberParser[int]):
     def _convert_result(self, result: float | int) -> int:
         if isinstance(result, (int, float)):
             return int(result)
+
         raise TypeError("expression does not evaluate to a number")
 
     def _eval_binop(self, op: ast.operator, left: int, right: int) -> int:
@@ -620,6 +657,7 @@ class IntParser(NumberParser[int]):
                 result = left**right
             case _:
                 raise TypeError(f"unsupported binary operator: {type(op)}")
+
         return result  # type: ignore[return-value]
 
 
@@ -652,6 +690,7 @@ class FloatParser(NumberParser[float]):
                 raise ZeroDivisionError(fmt_parser_err(value, float, "division by zero")) from err
 
             return self._convert_result(result)
+
         raise ValueError(fmt_parser_err(value, float, "invalid float value"))
 
     def _convert_value(self, value: str) -> float:
@@ -663,6 +702,7 @@ class FloatParser(NumberParser[float]):
     def _convert_result(self, result: float | int) -> float:
         if isinstance(result, (int, float)):
             return float(result)
+
         raise TypeError("expression does not evaluate to a number")
 
     def _eval_binop(self, op: ast.operator, left: float | int, right: float | int) -> float:
@@ -684,6 +724,7 @@ class FloatParser(NumberParser[float]):
                 result = left**right
             case _:
                 raise TypeError(f"unsupported binary operator: {type(op)}")
+
         return result  # type: ignore[return-value]
 
 
@@ -697,6 +738,7 @@ class BoolParser(ParserBase[bool]):
         self._true_synonyms = true_synonyms or {"1", "true", "yes", "y", "on"}
         self._false_synonyms = false_synonyms or {"0", "false", "no", "n", "off"}
         self._case_sensitive = case_sensitive
+
         if not case_sensitive:
             self._true_synonyms = {s.lower() for s in self._true_synonyms}
             self._false_synonyms = {s.lower() for s in self._false_synonyms}
@@ -704,8 +746,10 @@ class BoolParser(ParserBase[bool]):
     def parse(self, value: str | int | bool) -> bool:
         if isinstance(value, bool):
             return value
+
         if isinstance(value, int):
             return bool(value)
+
         if isinstance(value, str):
             key = value if self._case_sensitive else value.lower()
             if key in self._true_synonyms:
@@ -720,6 +764,7 @@ class BoolParser(ParserBase[bool]):
                     "valid choices: " + ", ".join(repr(c) for c in valid_choices),
                 )
             )
+
         raise TypeError(fmt_parser_err(value, bool, "expected bool, int, or str"))
 
 
@@ -752,6 +797,7 @@ class LiteralParser(ParserBase[ParseResultType]):
                     parsed = value.lower() == "true" if isinstance(value, str) else bool(value)
                 else:
                     parsed = t(value)
+
                 if parsed in choices:
                     return parsed  # type: ignore[return-value]
             except (TypeError, ValueError):

@@ -61,8 +61,10 @@ class TestInt:
     def test_division_by_zero(self, parser: StrToTypeParser):
         with pytest.raises(ZeroDivisionError):
             parser.parse("10/0", int)
+
         with pytest.raises(ZeroDivisionError):
             parser.parse("5//0", int)
+
         with pytest.raises(ZeroDivisionError):
             parser.parse("10%0", int)
 
@@ -119,8 +121,10 @@ class TestFloat:
     def test_division_by_zero(self, parser: StrToTypeParser):
         with pytest.raises(ZeroDivisionError):
             parser.parse("10/0", float)
+
         with pytest.raises(ZeroDivisionError):
             parser.parse("5//0", float)
+
         with pytest.raises(ZeroDivisionError):
             parser.parse("10%0", float)
 
@@ -268,6 +272,7 @@ class TestSlice:
         assert parser.parse("0:", slice) == slice(0, None)
         assert parser.parse("0:5:2", slice) == slice(0, 5, 2)
         assert parser.parse("::5", slice) == slice(None, None, 5)
+
         with pytest.raises(ValueError, match="1-3 parts"):
             parser.parse("0:5:2:4", slice)
 
@@ -280,6 +285,7 @@ class TestRange:
         assert parser.parse(":5", range) == range(5)
         assert parser.parse("5:", range) == range(5)
         assert parser.parse("0:5:2", range) == range(0, 5, 2)
+
         with pytest.raises(ValueError, match="1-3 parts"):
             parser.parse("0:5:2:4", range)
 
@@ -313,6 +319,7 @@ class TestEnum:
             C = 3
 
         assert parser.parse("A", MyEnum) == MyEnum.A
+
         with pytest.raises(KeyError):
             parser.parse("D", MyEnum)
 
@@ -329,6 +336,7 @@ class TestEnum:
 
         with pytest.raises(KeyError) as exc:
             parser.parse("nope", MyStrEnum)
+
         assert "red" in str(exc.value)
 
 
@@ -361,11 +369,13 @@ class TestBool:
 
         for v in ["true", "yes", "y", "on", "1"]:
             assert parser.parse(v, bool) is True
+
         for v in ["false", "no", "n", "off", "0"]:
             assert parser.parse(v, bool) is False
 
         with pytest.raises(ValueError, match="valid choices"):
             parser.parse("True", bool)
+
         with pytest.raises(ValueError, match="valid choices"):
             parser.parse("False", bool)
 
