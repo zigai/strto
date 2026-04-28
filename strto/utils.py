@@ -3,50 +3,55 @@ import operator
 import sys
 import types
 import typing
+from typing import Any, TypeAlias
+
+ParseInput: TypeAlias = Any
+ParsedValue: TypeAlias = Any
+TypeAnnotation: TypeAlias = Any
 
 if sys.version_info >= (3, 12):
     from typing import TypeAliasType
 else:
-    TypeAliasType = None  # type: ignore[misc,assignment]
+    TypeAliasType = None
 
 
-def _type_display(t: object) -> str:
+def _type_display(t: TypeAnnotation) -> str:
     try:
-        name = t.__name__  # type: ignore[attr-defined]
+        name = t.__name__
     except AttributeError:
         return str(t)
     return name if isinstance(name, str) else str(name)
 
 
-def fmt_parser_err(value: object, target: object, hint: str | None = None) -> str:
+def fmt_parser_err(value: ParseInput, target: TypeAnnotation, hint: str | None = None) -> str:
     msg = f"could not parse {value!r} as {_type_display(target)}."
     if hint:
         msg += f" {hint}"
     return msg
 
 
-def is_type_alias(t: object) -> bool:
+def is_type_alias(t: TypeAnnotation) -> bool:
     if TypeAliasType is None:
         return False
     return isinstance(t, TypeAliasType)
 
 
-def _unwrap_type_alias(t: object) -> object:
+def _unwrap_type_alias(t: TypeAnnotation) -> TypeAnnotation:
     while is_type_alias(t):
-        t = t.__value__  # type: ignore[union-attr]
+        t = t.__value__
     return t
 
 
-def _resolve_generic_type_args(t: object) -> object:
-    origin = typing.get_origin(t)
+def _resolve_generic_type_args(t: TypeAnnotation) -> TypeAnnotation:
+    origin: Any = typing.get_origin(t)
     if origin is None or origin is typing.Annotated:
         return t
 
-    args = typing.get_args(t)
+    args: tuple[Any, ...] = typing.get_args(t)
     if not args:
         return t
 
-    resolved_args: list[object] = []
+    resolved_args: list[TypeAnnotation] = []
     changed = False
     for arg in args:
         if arg is Ellipsis:
@@ -66,11 +71,14 @@ def _resolve_generic_type_args(t: object) -> object:
     return origin[tuple(resolved_args)]
 
 
-def unwrap_type(t: object) -> object:
+def unwrap_type(t: TypeAnnotation) -> TypeAnnotation:
     t = _unwrap_type_alias(t)
 
-    while typing.get_origin(t) is typing.Annotated:
-        args = typing.get_args(t)
+    while True:
+        origin: Any = typing.get_origin(t)
+        if origin is not typing.Annotated:
+            break
+        args: tuple[Any, ...] = typing.get_args(t)
         if not args:
             break
         t = args[0]
