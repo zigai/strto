@@ -1,12 +1,12 @@
 [project]
 name = "strto"
-version = "0.2.7"
+version = "0.2.8"
 description = "Type-guided parsing library for converting strings to Python objects"
 authors = [{ name = "Žiga Ivanšek", email = "ziga.ivansek@gmail.com" }]
 license = { file = "LICENSE" }
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["stdl>=0.7.0", "objinspect>=0.4.2"]
+dependencies = ["stdl>=0.7.1", "objinspect>=0.4.2"]
 
 
 classifiers = [
@@ -40,15 +40,17 @@ keywords = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest", "coverage", "pydantic>=2"]
+test = ["pytest>=9.0.2", "coverage>=7.13.5", "pydantic>=2"]
 dev = [
-    "pytest",
-    "coverage",
-    "ruff",
-    "pre-commit",
-    "codespell",
-    "mypy",
+    "pytest>=9.0.2",
+    "coverage>=7.13.5",
+    "ruff==0.15.8",
+    "pre-commit>=4.5.1",
+    "codespell>=2.4.2",
+    "mypy>=1.19.1",
     "pydantic>=2",
+    "rattle-lint>=1.0.6",
+    "rattle-blank-lines>=0.2.6",
 ]
 
 [project.urls]
@@ -107,7 +109,12 @@ ignore_missing_imports = true
 skip = '.git,uv.lock'
 
 [dependency-groups]
-dev = ["pre-commit>=4.2.0"]
+dev = ["pre-commit>=4.5.1"]
+
+[tool.rattle]
+root = true
+enable = ["rattle_blank_lines.rules"]
+disable = ["rattle.rules"]
 
 [tool.ruff]
 line-length = 100
