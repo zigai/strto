@@ -444,16 +444,16 @@ wheels = [
 
 [[package]]
 name = "objinspect"
-version = "0.4.2"
+version = "0.4.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "docstring-parser" },
     { name = "stdl" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/da/64/21f287b7cbadcf61e85947554292e56d74e7877133b0e274f9faad27c222/objinspect-0.4.2.tar.gz", hash = "sha256:123c237ed6b89d0eec8cc8b394db071ff9fd5f2642558e3e95af0bcd630ae344", size = 54682, upload-time = "2026-02-24T18:05:02.78Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b1/16/d543a6e8523327bfbb80808b862c698520d21c639977625d18c48fbd33ea/objinspect-0.4.3.tar.gz", hash = "sha256:29bad637e1a4a035260c50f8fabd0390bab6346fd0c19fd07c73fdec816bbce9", size = 80456, upload-time = "2026-04-28T06:42:09.248Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ab/8b/03357f48dc88771a57c9ed5cd3a3b255d0c21c88be09039bd157b9475ee2/objinspect-0.4.2-py3-none-any.whl", hash = "sha256:83e1166952cec32ced045e3f1017b6e28e3e286891487357bf1121ca71b7b1bc", size = 19891, upload-time = "2026-02-24T18:05:01.204Z" },
+    { url = "https://files.pythonhosted.org/packages/3c/f9/8cbc0e59248085d457e4a45f6b50e4712a4550d3c49582d173cb5c1d70bc/objinspect-0.4.3-py3-none-any.whl", hash = "sha256:d7286862665319d179f42584e76dce1c8aaf9268f20053c6590e47b848baf5b2", size = 20677, upload-time = "2026-04-28T06:42:08.011Z" },
 ]
 
 [[package]]
@@ -848,7 +848,7 @@ wheels = [
 
 [[package]]
 name = "strto"
-version = "0.2.8"
+version = "0.2.9"
 source = { editable = "." }
 dependencies = [
     { name = "objinspect" },
@@ -884,7 +884,7 @@ requires-dist = [
     { name = "coverage", marker = "extra == 'dev'", specifier = ">=7.13.5" },
     { name = "coverage", marker = "extra == 'test'", specifier = ">=7.13.5" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.19.1" },
-    { name = "objinspect", specifier = ">=0.4.2" },
+    { name = "objinspect", specifier = ">=0.4.3" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.5.1" },
     { name = "pydantic", marker = "extra == 'dev'", specifier = ">=2" },
     { name = "pydantic", marker = "extra == 'test'", specifier = ">=2" },
