@@ -1,5 +1,6 @@
 import enum
 import typing
+from collections.abc import Iterable, Mapping, Sequence
 
 import pytest
 
@@ -33,6 +34,9 @@ def test_is_supported_variants(parser: StrToTypeParser) -> None:
     assert parser.is_supported(tuple[int, ...])
     assert parser.is_supported(tuple[int, str])
     assert parser.is_supported(int | str)
+    assert not parser.is_supported(Iterable[str])
+    assert not parser.is_supported(Sequence[int])
+    assert not parser.is_supported(Mapping[str, int])
     assert not parser.is_supported(tuple[()])
     assert not parser.is_supported(set[()])
     assert not parser.is_supported(typing.Type[int])  # noqa: UP006
@@ -55,6 +59,14 @@ def test_parse_alias_mapping_error() -> None:
     parser = core.StrToTypeParser({int: int, str: str, dict: dict})
     with pytest.raises(ValueError, match="expected JSON string for mapping"):
         parser.parse("{", dict[str, int])
+
+
+def test_parse_alias_abstract_collection_error(parser: StrToTypeParser) -> None:
+    with pytest.raises(TypeError, match="unsupported abstract iterable type"):
+        parser.parse("1,2", Sequence[int])
+
+    with pytest.raises(TypeError, match="unsupported abstract mapping type"):
+        parser.parse('{"a": 1}', Mapping[str, int])
 
 
 def test_parse_alias_tuple_length_mismatch(parser: StrToTypeParser) -> None:

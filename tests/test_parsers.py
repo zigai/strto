@@ -176,6 +176,16 @@ def test_slice_parser_existing_slice() -> None:
     assert parser(existing) is existing
 
 
+def test_slice_parser_returns_integer_indices() -> None:
+    parser = parsers.SliceParser()
+    result = parser("1:5:2")
+    assert result == slice(1, 5, 2)
+    assert result.start == 1
+    assert result.stop == 5
+    assert result.step == 2
+    assert [0, 1, 2, 3, 4, 5][result] == [1, 3]
+
+
 def test_slice_parser_invalid_length() -> None:
     parser = parsers.SliceParser()
     with pytest.raises(ValueError, match="1-3 parts"):
@@ -252,6 +262,32 @@ def test_bool_parser_synonyms_and_errors() -> None:
         parser("maybe")
     with pytest.raises(TypeError):
         parser(3.14)  # type: ignore[arg-type]
+
+
+def test_bool_parser_custom_synonyms_case_sensitive() -> None:
+    parser = parsers.BoolParser(
+        true_synonyms={"YES"},
+        false_synonyms={"NO"},
+        case_sensitive=True,
+    )
+    assert parser("YES") is True
+    assert parser("NO") is False
+    with pytest.raises(ValueError, match="valid choices"):
+        parser("yes")
+
+
+def test_bool_parser_custom_synonyms_case_insensitive() -> None:
+    parser = parsers.BoolParser(
+        true_synonyms={"YES"},
+        false_synonyms={"NO"},
+    )
+    assert parser("YES") is True
+    assert parser("no") is False
+
+
+def test_parse_kv_mapping_rejects_invalid_json_value() -> None:
+    with pytest.raises(ValueError, match="invalid JSON value for key 'payload'"):
+        parsers.parse_kv_mapping('payload={"a":}')
 
 
 def test_literal_parser_behaviour() -> None:
