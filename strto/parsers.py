@@ -63,7 +63,9 @@ def _split_kv_chunks(value: str) -> list[str]:
             buf = []
 
             continue
+
         buf.append(ch)
+
     chunk = "".join(buf).strip()
     if chunk:
         chunks.append(chunk)
@@ -94,6 +96,7 @@ def parse_kv_mapping(value: str) -> JsonMapping:
             key, raw = token.split("=", 1)
             if not key:
                 raise ValueError(fmt_parser_err(token, "mapping", "expected non-empty key"))
+
             raw = raw.strip()
             if raw.startswith(("{", "[")):
                 try:
@@ -394,29 +397,6 @@ class ArrayParser(ParserBase[array.array]):  # type: ignore[type-arg]
     _CTYPES_MAP: ClassVar[dict[type, str] | None] = None
 
     @classmethod
-    def _get_ctypes_map(cls) -> dict[type, str]:
-        if cls._CTYPES_MAP is None:
-            import ctypes
-
-            cls._CTYPES_MAP = {
-                ctypes.c_byte: "b",  # signed char
-                ctypes.c_ubyte: "B",  # unsigned char
-                ctypes.c_short: "h",  # signed short
-                ctypes.c_ushort: "H",  # unsigned short
-                ctypes.c_int: "i",  # signed int
-                ctypes.c_uint: "I",  # unsigned int
-                ctypes.c_long: "l",  # signed long
-                ctypes.c_ulong: "L",  # unsigned long
-                ctypes.c_longlong: "q",  # signed long long
-                ctypes.c_ulonglong: "Q",  # unsigned long long
-                ctypes.c_float: "f",  # float
-                ctypes.c_double: "d",  # double
-                ctypes.c_wchar: "w",  # unicode character
-            }
-
-        return cls._CTYPES_MAP
-
-    @classmethod
     def get_type_code(cls, t: type | None) -> str | None:
         """Get type code from a type, checking both basic types and ctypes."""
         if t is None:
@@ -452,6 +432,29 @@ class ArrayParser(ParserBase[array.array]):  # type: ignore[type-arg]
                 fmt_parser_err(value, array.array, f"invalid value for type code '{code}'")
             ) from e
 
+    @classmethod
+    def _get_ctypes_map(cls) -> dict[type, str]:
+        if cls._CTYPES_MAP is None:
+            import ctypes
+
+            cls._CTYPES_MAP = {
+                ctypes.c_byte: "b",  # signed char
+                ctypes.c_ubyte: "B",  # unsigned char
+                ctypes.c_short: "h",  # signed short
+                ctypes.c_ushort: "H",  # unsigned short
+                ctypes.c_int: "i",  # signed int
+                ctypes.c_uint: "I",  # unsigned int
+                ctypes.c_long: "l",  # signed long
+                ctypes.c_ulong: "L",  # unsigned long
+                ctypes.c_longlong: "q",  # signed long long
+                ctypes.c_ulonglong: "Q",  # unsigned long long
+                ctypes.c_float: "f",  # float
+                ctypes.c_double: "d",  # double
+                ctypes.c_wchar: "w",  # unicode character
+            }
+
+        return cls._CTYPES_MAP
+
     def _infer_type_code(self, parts: list[str]) -> str:
         """Infer type code from input values."""
         for p in parts:
@@ -464,9 +467,6 @@ class ArrayParser(ParserBase[array.array]):  # type: ignore[type-arg]
 class SliceParser(ParserBase[slice]):
     def __init__(self, sep: str = SLICE_SEP) -> None:
         self.sep = sep
-
-    def _get_nums(self, value: str) -> list[int | None]:
-        return [int(i) if i else None for i in value.split(self.sep)]
 
     def parse(self, value: str | slice) -> slice:
         if isinstance(value, slice):
@@ -484,13 +484,13 @@ class SliceParser(ParserBase[slice]):
 
         return slice(*nums)
 
+    def _get_nums(self, value: str) -> list[int | None]:
+        return [int(i) if i else None for i in value.split(self.sep)]
+
 
 class RangeParser(ParserBase[range]):
     def __init__(self, sep: str = SLICE_SEP) -> None:
         self.sep = sep
-
-    def _get_nums(self, value: str) -> list[int]:
-        return [int(i) for i in value.split(self.sep) if i]
 
     def parse(self, value: str | range) -> range:
         if isinstance(value, range):
@@ -507,6 +507,9 @@ class RangeParser(ParserBase[range]):
             )
 
         return range(*nums)
+
+    def _get_nums(self, value: str) -> list[int]:
+        return [int(i) for i in value.split(self.sep) if i]
 
 
 class NumberParser(ParserBase[NumericType]):
@@ -592,26 +595,6 @@ class NumberParser(ParserBase[NumericType]):
 class IntParser(NumberParser[int]):
     CONSTANTS: ClassVar[dict[str, int]] = {}
 
-    def _basic_parse(self, value: str) -> int | None:
-        """Override to reject float-like strings for union parsing."""
-        value = self.clean(value)
-
-        if isinstance(value, int):
-            return value
-        if isinstance(value, float):
-            raise TypeError(fmt_parser_err(value, int, "looks like a float"))
-        if isinstance(value, str) and value in self.CONSTANTS:
-            return self.CONSTANTS[value]
-        if isinstance(value, str) and "." in value:
-            raise ValueError(fmt_parser_err(value, int, "looks like a float"))
-
-        try:
-            return self._convert_value(value)
-        except (ValueError, TypeError):
-            pass
-
-        return None
-
     def parse(self, value: str) -> int:
         result = self._basic_parse(value)
         if result is not None:
@@ -631,6 +614,26 @@ class IntParser(NumberParser[int]):
             return self._convert_result(result)
 
         raise ValueError(fmt_parser_err(value, int, "invalid integer value"))
+
+    def _basic_parse(self, value: str) -> int | None:
+        """Override to reject float-like strings for union parsing."""
+        value = self.clean(value)
+
+        if isinstance(value, int):
+            return value
+        if isinstance(value, float):
+            raise TypeError(fmt_parser_err(value, int, "looks like a float"))
+        if isinstance(value, str) and value in self.CONSTANTS:
+            return self.CONSTANTS[value]
+        if isinstance(value, str) and "." in value:
+            raise ValueError(fmt_parser_err(value, int, "looks like a float"))
+
+        try:
+            return self._convert_value(value)
+        except (ValueError, TypeError):
+            pass
+
+        return None
 
     def _convert_value(self, value: str) -> int:
         return int(value)
@@ -799,6 +802,7 @@ class LiteralParser(ParserBase[ParseResultType]):
         for t in (int, str, bytes, bool):
             if t not in present_types:
                 continue
+
             try:
                 if t is bool:
                     parsed = value.lower() == "true" if isinstance(value, str) else bool(value)
