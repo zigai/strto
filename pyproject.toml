@@ -44,13 +44,12 @@ test = ["pytest>=9.0.3", "coverage>=7.14.1", "pydantic>=2"]
 dev = [
     "pytest>=9.0.3",
     "coverage>=7.14.1",
-    "ruff==0.15.15",
+    "ruff==0.15.16",
     "pre-commit>=4.6.0",
     "codespell>=2.4.2",
     "pyrefly>=1.0.0",
     "pydantic>=2",
-    "rattle-lint>=1.1.1",
-    "rattle-blank-lines>=0.3.0",
+    "rattle-lint>=2.5.1",
 ]
 
 [project.urls]
@@ -112,8 +111,32 @@ dev = ["pre-commit>=4.6.0"]
 
 [tool.rattle]
 root = true
-enable = ["rattle_blank_lines.rules"]
-disable = ["rattle.rules"]
+enable = [
+    "blank-line-after-control-block",
+    "blank-line-after-terminal-control-block",
+    "blank-line-before-branch",
+    "blank-line-before-unrelated-block",
+    "no-suite-leading-trailing-blank-lines",
+    "module-all-at-bottom",
+    "no-underscore-all-exports",
+    "forbidden-call",
+    "no-relative-imports",
+    "no-underscore-import-aliases",
+    "no-unsafe-tempfile-factories",
+    "no-annotated-self",
+    "no-exception-message-variables",
+    "no-str-exception-translation",
+    "no-underscore-class",
+    "public-method-order",
+    "no-bare-object-annotations",
+    "no-named-tuple",
+    "no-static-if-condition",
+    "sorted-attributes",
+    "use-callable-ellipsis",
+]
+
+[tool.rattle.options."forbidden-call"]
+forbidden_calls = ["typing.cast"]
 
 [tool.ruff]
 line-length = 100
