@@ -9,7 +9,7 @@ import json
 import sys
 import typing
 from collections.abc import Callable, Iterable, Mapping
-from typing import Any, Generic, TypeVar, cast, get_type_hints, overload
+from typing import Any, Generic, TypeVar, get_type_hints, overload
 
 from objinspect import Class, Parameter
 from objinspect.constants import EMPTY as OBJ_EMPTY
@@ -110,6 +110,7 @@ class StrToTypeParser:
         if is_mapping_type(base_t):
             if not self._is_constructible_generic_base(base_t):
                 return False
+
             key_type, value_type = sub_t
 
             return self.is_supported(key_type) and self.is_supported(value_type)
@@ -192,19 +193,17 @@ class StrToTypeParser:
 
         return _PARSE_MISSING
 
-    def _parse_alias(self, value: ParseInput, t: type[T]) -> T:
+    def _parse_alias(self, value: ParseInput, t: type[T]) -> ParsedValue:
         base_t = type_origin(t)
         sub_t = type_args(t)
 
         if is_mapping_type(base_t):
             if not self._is_constructible_generic_base(base_t):
                 raise TypeError(fmt_parser_err(value, t, "unsupported abstract mapping type"))
+
             key_type, value_type = sub_t
 
-            return cast(
-                T,
-                self._parse_mapping_alias(value, t, base_t, key_type, value_type),
-            )
+            return self._parse_mapping_alias(value, t, base_t, key_type, value_type)
 
         if base_t is array.array:
             from strto.parsers import ArrayParser
@@ -212,13 +211,13 @@ class StrToTypeParser:
             item_t = sub_t[0] if sub_t else None
             type_code = ArrayParser.get_type_code(item_t)
             parser = ArrayParser(type_code=type_code)
-            return cast(T, parser(value))
+            return parser(value)
 
         if is_iterable_type(base_t):
             if not self._is_constructible_generic_base(base_t):
                 raise TypeError(fmt_parser_err(value, t, "unsupported abstract iterable type"))
 
-            return cast(T, self._parse_iterable_alias(value, t, base_t, sub_t))
+            return self._parse_iterable_alias(value, t, base_t, sub_t)
 
         raise TypeError(fmt_parser_err(value, t, "unsupported generic alias"))
 
@@ -231,7 +230,7 @@ class StrToTypeParser:
         value_type: TypeAnnotation,
     ) -> ParsedValue:
         mapping_instance = base_t()
-        items = cast(Mapping[ParseInput, ParseInput], self._load_mapping_alias_items(value, t))
+        items = self._load_mapping_alias_items(value, t)
         for key, item_value in items.items():
             mapping_instance[self.parse(key, key_type)] = self.parse(item_value, value_type)
 
@@ -241,17 +240,20 @@ class StrToTypeParser:
         self,
         value: ParseInput,
         t: type[T],
-    ) -> ParsedValue:
+    ) -> Mapping[ParseInput, ParseInput]:
         if isinstance(value, Mapping):
             return value
 
         if isinstance(value, str):
             try:
-                return json.loads(value)
+                loaded = json.loads(value)
             except ValueError as e:
                 raise ValueError(
                     fmt_parser_err(value, t, "expected JSON string for mapping")
                 ) from e
+
+            if isinstance(loaded, Mapping):
+                return loaded
 
         raise TypeError(fmt_parser_err(value, t, "expected mapping or JSON string"))
 
@@ -319,11 +321,12 @@ class StrToTypeParser:
 
         return tuple(self.parse(item, item_t) for item, item_t in zip(parts, sub_t, strict=False))
 
-    def _parse_union(self, value: ParseInput, t: type[T]) -> T:
+    def _parse_union(self, value: ParseInput, t: type[T]) -> ParsedValue:
         for member_t in type_args(t):
             parsed = self._try_parse_union_value(value, member_t)
             if parsed is not _PARSE_MISSING:
-                return cast(T, parsed)
+                return parsed
+
         tried = ", ".join(getattr(item_t, "__name__", str(item_t)) for item_t in type_args(t))
 
         raise ValueError(fmt_parser_err(value, t, f"tried types: {tried}"))
@@ -403,6 +406,7 @@ class StrToTypeParser:
             import pydantic
         except ImportError:
             return False
+
         base = getattr(pydantic, "BaseModel", None)
         if base is None:
             return False
@@ -449,6 +453,7 @@ class StrToTypeParser:
                 if annotation in module_ns:
                     resolved[name] = module_ns[annotation]
                     continue
+
                 builtin = getattr(builtins, annotation, None)
                 if builtin is not None:
                     resolved[name] = builtin
@@ -466,6 +471,7 @@ class StrToTypeParser:
             module_ns = vars(module) if module is not None else {}
             if annotation in module_ns:
                 return module_ns[annotation]
+
             builtin = getattr(builtins, annotation, None)
             if builtin is not None:
                 return builtin
@@ -517,6 +523,7 @@ class StrToTypeParser:
             if name not in field_types:
                 parsed[name] = raw
                 continue
+
             field_type = field_types.get(name, Any)
             parsed[name] = self._parse_model_value(raw, field_type)
 
@@ -543,6 +550,7 @@ class StrToTypeParser:
         for param in params:
             if self._should_skip_init_param(param):
                 continue
+
             param_type = self._resolve_class_init_param_type(param, class_hints, t)
             if param.name in mapping:
                 parsed_kwargs[param.name] = self._parse_model_value(
@@ -567,6 +575,7 @@ class StrToTypeParser:
             for key, raw in mapping.items():
                 if key in parsed_kwargs:
                     continue
+
                 parsed_kwargs[key] = raw
 
         return t(**parsed_kwargs)
