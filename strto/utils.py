@@ -9,10 +9,13 @@ ParseInput: TypeAlias = Any
 ParsedValue: TypeAlias = Any
 TypeAnnotation: TypeAlias = Any
 
+_TYPE_ALIAS_TYPES: tuple[type[Any], ...]
 if sys.version_info >= (3, 12):
     from typing import TypeAliasType
+
+    _TYPE_ALIAS_TYPES = (TypeAliasType,)
 else:
-    TypeAliasType = None
+    _TYPE_ALIAS_TYPES = ()
 
 
 def _type_display(t: TypeAnnotation) -> str:
@@ -33,10 +36,7 @@ def fmt_parser_err(value: ParseInput, target: TypeAnnotation, hint: str | None =
 
 
 def is_type_alias(t: TypeAnnotation) -> bool:
-    if TypeAliasType is None:
-        return False
-
-    return isinstance(t, TypeAliasType)
+    return isinstance(t, _TYPE_ALIAS_TYPES)
 
 
 def _unwrap_type_alias(t: TypeAnnotation) -> TypeAnnotation:
