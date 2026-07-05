@@ -7,7 +7,7 @@ import shlex
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import ClassVar, Generic, Literal, Protocol, TypeAlias, TypeVar, overload
+from typing import Any, ClassVar, Generic, Literal, Protocol, TypeAlias, TypeVar, overload
 
 from stdl.dt import hms_to_seconds, parse_datetime_str
 from stdl.fs import File, json_load, yaml_load
@@ -26,6 +26,24 @@ JsonMapping: TypeAlias = dict[str, JsonValue]
 ITER_SEP = ","
 SLICE_SEP = ":"
 FROM_FILE_PREFIX = "@"
+
+
+def _ensure_json_value(value: ParseInput) -> JsonValue:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, list):
+        return [_ensure_json_value(item) for item in value]
+    if isinstance(value, dict):
+        mapping: JsonMapping = {}
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise TypeError(fmt_parser_err(key, "mapping", "expected string key"))
+
+            mapping[key] = _ensure_json_value(item)
+
+        return mapping
+
+    raise TypeError(fmt_parser_err(value, "JSON", "expected JSON-compatible value"))
 
 
 def _split_kv_chunks(value: str) -> list[str]:
@@ -115,9 +133,9 @@ def parse_kv_mapping(value: str) -> JsonMapping:
 
 def load_data_from_file(path: str) -> JsonValue:
     if path.endswith((".yaml", ".yml")):
-        return yaml_load(path)
+        return _ensure_json_value(yaml_load(path))
 
-    return json_load(path)
+    return _ensure_json_value(json_load(path))
 
 
 def load_mapping_value(value: ParseInput, *, from_file: bool = False) -> Mapping[str, ParseInput]:
@@ -190,7 +208,8 @@ class Cast(ParserBase[ParseResultType]):
             return value
 
         try:
-            return self.t(value)
+            constructor: Any = self.t
+            return constructor(value)
         except Exception as e:
             raise ValueError(fmt_parser_err(value, self.t)) from e
 
@@ -232,30 +251,31 @@ class IterableParser(ParserBase[IterableType]):
         self.from_file = from_file
 
     def parse(self, value: str | Iterable[str]) -> IterableType:
+        parts: Iterable[ParseInput]
         if isinstance(value, str):
             if self.from_file and value.startswith(FROM_FILE_PREFIX):
                 filepath = value[len(FROM_FILE_PREFIX) :]
                 if Path(filepath).is_file():
-                    value = self.read_from_file(filepath)
+                    parts = self.read_from_file(filepath)
                 else:
                     raise FileNotFoundError(
                         fmt_parser_err(value, self.t or "iterable", "file not found")
                     )
             else:
-                value = [i.strip() for i in value.split(self.sep)]
+                parts = [i.strip() for i in value.split(self.sep)]
         elif isinstance(value, Iterable):
-            value = [i.split(self.sep) for i in value]
+            parts = [i.split(self.sep) for i in value]
         else:
             raise TypeError(
                 fmt_parser_err(value, self.t or "iterable", "expected string or Iterable")
             )
 
         if self.t is not None:
-            return self.t(value)  # type: ignore[return-value]
+            return self.t(parts)  # type: ignore[return-value]
 
-        return value  # type: ignore[return-value]
+        return parts  # type: ignore[return-value]
 
-    def read_from_file(self, value: str) -> list[str]:
+    def read_from_file(self, value: str) -> Iterable[str]:
         data = File(value).should_exist().splitlines()
         if len(data) == 1 and self.sep in data[0]:
             data = data[0].split(self.sep)
@@ -303,37 +323,42 @@ class MappingParser(IterableParser[MappingType]):  # type: ignore[type-arg]
         self.mode = mode
 
     def parse(self, value: str) -> MappingType:  # type: ignore[override]
-        if isinstance(value, str):
-            if self.from_file and value.startswith(FROM_FILE_PREFIX):
-                filepath = value[len(FROM_FILE_PREFIX) :]
-                if Path(filepath).is_file():
-                    value = self.read_from_file(filepath)
-                else:
-                    raise FileNotFoundError(
-                        fmt_parser_err(value, self.t or "mapping", "file not found")
-                    )
-            else:
-                value = json.loads(value)
+        if not isinstance(value, str):
+            raise TypeError(
+                fmt_parser_err(value, self.t or "mapping", "expected JSON string or @file path")
+            )
 
-            if self.t is not None:
-                if self.mode == "cast":
-                    return self.t(value)  # type: ignore[return-value]
-                if self.mode == "unpack":
-                    return self.t(**value)  # type: ignore[return-value]
+        if self.from_file and value.startswith(FROM_FILE_PREFIX):
+            filepath = value[len(FROM_FILE_PREFIX) :]
+            if not Path(filepath).is_file():
+                raise FileNotFoundError(
+                    fmt_parser_err(value, self.t or "mapping", "file not found")
+                )
 
-                raise ValueError(f"Invalid mode: {self.mode}")
+            mapping = self.read_from_file(filepath)
+        else:
+            parsed = json.loads(value)
+            if not isinstance(parsed, Mapping):
+                raise TypeError(fmt_parser_err(value, self.t or "mapping", "expected JSON object"))
 
-            return value  # type: ignore[return-value]
+            mapping = parsed
 
-        raise TypeError(
-            fmt_parser_err(value, self.t or "mapping", "expected JSON string or @file path")
-        )
+        if self.t is not None:
+            if self.mode == "cast":
+                return self.t(mapping)  # type: ignore[return-value]
+            if self.mode == "unpack":
+                return self.t(**mapping)  # type: ignore[return-value]
+
+            raise ValueError(f"Invalid mode: {self.mode}")
+
+        return mapping  # type: ignore[return-value]
 
     def read_from_file(self, value: str) -> Mapping[str, ParseInput]:
-        if value.endswith((".yaml", ".yml")):
-            return yaml_load(value)  # type: ignore[return-value]
+        data = load_data_from_file(value)
+        if isinstance(data, Mapping):
+            return data
 
-        return json_load(value)  # type: ignore[return-value]
+        raise TypeError(fmt_parser_err(value, self.t or "mapping", "expected mapping in file"))
 
 
 class DatetimeParser(ParserBase[datetime.datetime]):
@@ -372,11 +397,18 @@ class TimedeltaParser(ParserBase[datetime.timedelta]):
             return datetime.timedelta(seconds=value)
 
         try:
-            return datetime.timedelta(seconds=hms_to_seconds(value))
+            seconds = hms_to_seconds(value)
         except Exception as e:
             raise ValueError(
                 fmt_parser_err(value, datetime.timedelta, "use formats like HH:MM:SS or seconds")
             ) from e
+
+        if seconds is None:
+            raise ValueError(
+                fmt_parser_err(value, datetime.timedelta, "use formats like HH:MM:SS or seconds")
+            )
+
+        return datetime.timedelta(seconds=seconds)
 
 
 class ArrayParser(ParserBase[array.array]):  # type: ignore[type-arg]
@@ -515,7 +547,7 @@ class RangeParser(ParserBase[range]):
 class NumberParser(ParserBase[NumericType]):
     """Base class for numeric parsers."""
 
-    CONSTANTS: ClassVar[dict[str, float | int]] = {}
+    CONSTANTS: ClassVar[dict[str, int] | dict[str, float]] = {}
 
     def __init__(self, allow_expressions: bool = True) -> None:
         self.allow_expressions = allow_expressions

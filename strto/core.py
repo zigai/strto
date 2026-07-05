@@ -9,7 +9,7 @@ import json
 import sys
 import typing
 from collections.abc import Callable, Iterable, Mapping
-from typing import Any, Generic, TypeVar, get_type_hints, overload
+from typing import Any, ClassVar, Generic, Protocol, TypeGuard, TypeVar, get_type_hints, overload
 
 from objinspect import Class, Parameter
 from objinspect.constants import EMPTY as OBJ_EMPTY
@@ -36,6 +36,17 @@ from strto.utils import ParsedValue, ParseInput, TypeAnnotation, fmt_parser_err,
 T = TypeVar("T")
 _PARSE_MISSING = object()
 _BUILTIN_COLLECTION_TYPES = (list, dict, set, tuple, frozenset)
+
+
+class PydanticV2Field(Protocol):
+    annotation: TypeAnnotation
+
+
+class PydanticV2Model(Protocol):
+    model_fields: ClassVar[Mapping[str, PydanticV2Field]]
+
+    @classmethod
+    def model_validate(cls, obj: Mapping[str, ParseInput]) -> ParsedValue: ...
 
 
 def _format_type_for_repr(t: TypeAnnotation) -> str:
@@ -209,7 +220,7 @@ class StrToTypeParser:
             from strto.parsers import ArrayParser
 
             item_t = sub_t[0] if sub_t else None
-            type_code = ArrayParser.get_type_code(item_t)
+            type_code = ArrayParser.get_type_code(item_t if inspect.isclass(item_t) else None)
             parser = ArrayParser(type_code=type_code)
             return parser(value)
 
@@ -291,7 +302,12 @@ class StrToTypeParser:
 
             if self.from_file and text.startswith("@"):
                 loaded = load_data_from_file(text[1:])
-                return loaded if isinstance(loaded, list) else list(loaded)
+                if isinstance(loaded, list):
+                    return loaded
+                if isinstance(loaded, Iterable):
+                    return list(loaded)
+
+                raise TypeError(fmt_parser_err(value, t, "expected iterable in file"))
 
             return [item.strip() for item in value.split(ITER_SEP)] if value != "" else []
 
@@ -386,9 +402,10 @@ class StrToTypeParser:
                 raise
 
     def _raise_enum_parse_err(self, value: ParseInput, t: type[enum.Enum], exc: Exception) -> None:
-        name_choices = list(t.__members__.keys())
+        members = t.__members__
+        name_choices = list(members.keys())
         if issubclass(t, str):
-            value_choices = [member.value for member in t]
+            value_choices = [member.value for member in members.values()]
             detail = f"valid values: {value_choices}; valid names: {name_choices}"
         else:
             detail = f"valid choices: {name_choices}"
@@ -398,7 +415,7 @@ class StrToTypeParser:
     def _is_dataclass_type(self, t: TypeAnnotation) -> bool:
         return inspect.isclass(t) and dataclasses.is_dataclass(t)
 
-    def _is_pydantic_v2_model(self, t: TypeAnnotation) -> bool:
+    def _is_pydantic_v2_model(self, t: TypeAnnotation) -> TypeGuard[type[PydanticV2Model]]:
         if not inspect.isclass(t):
             return False
 
@@ -513,7 +530,7 @@ class StrToTypeParser:
 
         return t(**parsed_kwargs)
 
-    def _parse_pydantic_v2(self, value: ParseInput, t: type[T]) -> T:
+    def _parse_pydantic_v2(self, value: ParseInput, t: type[PydanticV2Model]) -> ParsedValue:
         mapping = load_mapping_value(value, from_file=self.from_file)
 
         field_types = {name: field.annotation for name, field in t.model_fields.items()}
