@@ -3,14 +3,14 @@ name = "strto"
 version = "0.2.9"
 description = "Type-guided parsing library for converting strings to Python objects"
 authors = [{ name = "Žiga Ivanšek", email = "ziga.ivansek@gmail.com" }]
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE"]
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = ["stdl>=0.7.1", "objinspect>=0.4.3"]
 
 
 classifiers = [
-    "License :: OSI Approved :: MIT License",
     "Typing :: Typed",
     "Operating System :: OS Independent",
     "Intended Audience :: Developers",
@@ -58,22 +58,12 @@ Issues = "https://github.com/zigai/strto/issues"
 Homepage = "https://github.com/zigai/strto"
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["uv_build>=0.11.25,<0.12.0"]
+build-backend = "uv_build"
 
-[tool.hatch.envs.test]
-features = ["test"]
-installer = "uv"
-
-[[tool.hatch.envs.test.matrix]]
-python = ["3.10", "3.11", "3.12", "3.13", "3.14"]
-
-[tool.hatch.envs.test.scripts]
-test = "pytest {args}"
-cov = "coverage run -m pytest {args}"
-
-[tool.hatch.build.targets.wheel]
-packages = ["strto"]
+[tool.uv.build-backend]
+module-name = "strto"
+module-root = ""
 
 [tool.coverage.run]
 source = ["strto"]
@@ -106,8 +96,17 @@ spec-compliant-overloads = false
 [tool.codespell]
 skip = '.git,uv.lock'
 
+[tool.uv]
+default-groups = ["test"]
 [dependency-groups]
-dev = ["pre-commit>=4.6.0"]
+dev = [
+    "codespell>=2.4.2",
+    "pre-commit>=4.6.0",
+    "pyrefly>=1.0.0",
+    "rattle-lint>=2.5.1",
+    "ruff==0.15.16",
+]
+test = ["pytest>=9.0.3", "coverage>=7.14.1", "pydantic>=2"]
 
 [tool.rattle]
 root = true
