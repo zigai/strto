@@ -49,7 +49,7 @@ dev = [
     "codespell>=2.4.2",
     "pyrefly>=1.0.0",
     "pydantic>=2",
-    "rattle-lint>=2.5.1",
+    "rattle-lint>=3.0.0",
 ]
 
 [project.urls]
@@ -103,7 +103,7 @@ dev = [
     "codespell>=2.4.2",
     "pre-commit>=4.6.0",
     "pyrefly>=1.0.0",
-    "rattle-lint>=2.5.1",
+    "rattle-lint>=3.0.0",
     "ruff==0.16.1",
 ]
 test = ["pytest>=9.0.3", "coverage>=7.14.1", "pydantic>=2"]

@@ -62,10 +62,12 @@ Color.RED
 from dataclasses import dataclass
 from strto import get_parser
 
+
 @dataclass
 class NetworkAddress:
     host: str
     port: int
+
 
 parser = get_parser()
 
@@ -79,15 +81,18 @@ Nested models via dotted keys (or nested JSON):
 ```python
 from dataclasses import dataclass
 
+
 @dataclass
 class NetworkAddress:
     host: str
     port: int
 
+
 @dataclass
 class ApplicationConfig:
     debug: bool = False
     network: NetworkAddress | None = None
+
 
 parser.parse(
     "debug=true network.host=db network.port=5433",
@@ -118,31 +123,35 @@ to override the default model parsing for that type.
 from dataclasses import dataclass
 from strto import ParserBase, get_parser
 
+
 @dataclass
 class NetworkAddress:
     host: str
     port: int
+
 
 class NetworkAddressParser(ParserBase):
     def parse(self, value: str) -> NetworkAddress:
         host, port = value.rsplit(":")
         return NetworkAddress(host=host, port=int(port))
 
+
 parser = get_parser()
 parser.add(NetworkAddress, NetworkAddressParser())
 result = parser.parse("example.com:8080", NetworkAddress)
 print(result)  # NetworkAddress(host='example.com', port=8080)
+
 
 # You can also use a function
 def parse_network_address(value: str) -> NetworkAddress:
     host, port = value.rsplit(":")
     return NetworkAddress(host=host, port=int(port))
 
+
 parser = get_parser()
 parser.add(NetworkAddress, parse_network_address)
 result = parser.parse("example.com:8080", NetworkAddress)
 print(result)  # NetworkAddress(host='example.com', port=8080)
-
 ```
 
 ## License
