@@ -6,8 +6,8 @@ authors = [{ name = "Žiga Ivanšek", email = "ziga.ivansek@gmail.com" }]
 license = "MIT"
 license-files = ["LICENSE"]
 readme = "README.md"
-requires-python = ">=3.10"
-dependencies = ["stdl>=0.7.1", "objinspect>=0.4.3"]
+requires-python = ">=3.11"
+dependencies = ["stdl>=0.8.1", "objinspect>=1.0.1"]
 
 
 classifiers = [
@@ -20,7 +20,6 @@ classifiers = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -40,16 +39,17 @@ keywords = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=9.0.3", "coverage>=7.14.1", "pydantic>=2"]
+test = ["pytest>=9.0.3", "coverage>=7.14.1", "pydantic>=2", "hypothesis>=6.168.5"]
 dev = [
     "pytest>=9.0.3",
     "coverage>=7.14.1",
-    "ruff==0.16.1",
+    "ruff==0.16.10",
     "pre-commit>=4.6.0",
     "codespell>=2.4.2",
     "pyrefly>=1.0.0",
     "pydantic>=2",
-    "rattle-lint>=3.0.0",
+    "hypothesis>=6.168.5",
+    "rattle-lint>=3.4.0",
 ]
 
 [project.urls]
@@ -84,7 +84,7 @@ project-excludes = ["tests/**"]
 disable-project-excludes-heuristics = true
 search-path = ["."]
 disable-search-path-heuristics = true
-python-version = "3.10"
+python-version = "3.11"
 enabled-ignores = ["type", "pyrefly"]
 use-ignore-files = false
 check-unannotated-defs = true
@@ -103,10 +103,10 @@ dev = [
     "codespell>=2.4.2",
     "pre-commit>=4.6.0",
     "pyrefly>=1.0.0",
-    "rattle-lint>=3.0.0",
-    "ruff==0.16.1",
+    "rattle-lint>=3.4.0",
+    "ruff==0.16.10",
 ]
-test = ["pytest>=9.0.3", "coverage>=7.14.1", "pydantic>=2"]
+test = ["pytest>=9.0.3", "coverage>=7.14.1", "pydantic>=2", "hypothesis>=6.168.5"]
 
 [tool.rattle]
 root = true
