@@ -243,7 +243,11 @@ class StrToTypeParser:
         mapping_instance = base_t()
         items = self._load_mapping_alias_items(value, t)
         for key, item_value in items.items():
-            mapping_instance[self.parse(key, key_type)] = self.parse(item_value, value_type)
+            parsed_key = self.parse(key, key_type)
+            if parsed_key in mapping_instance:
+                raise ValueError(fmt_parser_err(key, t, "duplicate key after conversion"))
+
+            mapping_instance[parsed_key] = self.parse(item_value, value_type)
 
         return mapping_instance
 
@@ -419,9 +423,9 @@ class StrToTypeParser:
         if not inspect.isclass(t):
             return False
 
-        try:
-            import pydantic
-        except ImportError:
+        # A pydantic model can only exist after pydantic was imported; avoid paying for that import.
+        pydantic = sys.modules.get("pydantic")
+        if pydantic is None:
             return False
 
         base = getattr(pydantic, "BaseModel", None)

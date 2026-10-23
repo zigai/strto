@@ -3,9 +3,12 @@ import enum
 import fractions
 import math
 import pathlib
+from decimal import Decimal
 from fractions import Fraction
 
 import pytest
+from hypothesis import example, given
+from hypothesis import strategies as st
 
 from strto import StrToTypeParser, get_parser
 
@@ -21,6 +24,21 @@ class TestInt:
     def test_scientific_notation(self, parser: StrToTypeParser):
         assert parser.parse("2e4", int) == 20000
         assert parser.parse("1e3", int) == 1000
+        assert parser.parse("9007199254740993e2 + 1", int) == 900719925474099301
+        assert parser.parse("-9007199254740993e2", int) == -900719925474099300
+
+    @given(
+        coefficient=st.integers(min_value=-(2**60), max_value=2**60),
+        exponent=st.integers(min_value=0, max_value=12),
+    )
+    @example(coefficient=576_460_752_305, exponent=6)
+    def test_scientific_notation_preserves_exact_integer(
+        self, coefficient: int, exponent: int
+    ) -> None:
+        value = f"{coefficient}e{exponent}"
+        parser = get_parser(from_file=False)
+
+        assert parser.parse(value, int) == int(Decimal(value))
 
     def test_caret_power(self, parser: StrToTypeParser):
         assert parser.parse("2^4", int) == 16

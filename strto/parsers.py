@@ -6,11 +6,9 @@ import math
 import shlex
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, ClassVar, Generic, Literal, Protocol, TypeAlias, TypeVar, overload
-
-from stdl.dt import hms_to_seconds, parse_datetime_str
-from stdl.fs import File, json_load, yaml_load
 
 from strto.utils import ParseInput, TypeAnnotation, fmt_parser_err
 
@@ -58,7 +56,7 @@ def _split_kv_chunks(value: str) -> list[str]:
             escape = False
             continue
 
-        if ch == "\\" and (in_single or in_double):
+        if ch == "\\" and not in_single:
             buf.append(ch)
             escape = True
             continue
@@ -115,7 +113,6 @@ def parse_kv_mapping(value: str) -> JsonMapping:
             if not key:
                 raise ValueError(fmt_parser_err(token, "mapping", "expected non-empty key"))
 
-            raw = raw.strip()
             if raw.startswith(("{", "[")):
                 try:
                     parsed = json.loads(raw)
@@ -132,6 +129,8 @@ def parse_kv_mapping(value: str) -> JsonMapping:
 
 
 def load_data_from_file(path: str) -> JsonValue:
+    from stdl.fs import json_load, yaml_load
+
     if path.endswith((".yaml", ".yml")):
         return _ensure_json_value(yaml_load(path))
 
@@ -276,6 +275,8 @@ class IterableParser(ParserBase[IterableType]):
         return parts  # type: ignore[return-value]
 
     def read_from_file(self, value: str) -> Iterable[str]:
+        from stdl.fs import File
+
         data = File(value).should_exist().splitlines()
         if len(data) == 1 and self.sep in data[0]:
             data = data[0].split(self.sep)
@@ -363,6 +364,8 @@ class MappingParser(IterableParser[MappingType]):  # type: ignore[type-arg]
 
 class DatetimeParser(ParserBase[datetime.datetime]):
     def parse(self, value: str) -> datetime.datetime:
+        from stdl.dt import parse_datetime_str
+
         try:
             return parse_datetime_str(value)
         except Exception as e:
@@ -373,6 +376,8 @@ class DatetimeParser(ParserBase[datetime.datetime]):
 
 class DateParser(ParserBase[datetime.date]):
     def parse(self, value: str) -> datetime.date:
+        from stdl.dt import parse_datetime_str
+
         try:
             return parse_datetime_str(value).date()
         except Exception as e:
@@ -383,6 +388,8 @@ class DateParser(ParserBase[datetime.date]):
 
 class TimeParser(ParserBase[datetime.time]):
     def parse(self, value: str) -> datetime.time:
+        from stdl.dt import parse_datetime_str
+
         try:
             return parse_datetime_str(value).time()
         except Exception as e:
@@ -395,6 +402,8 @@ class TimedeltaParser(ParserBase[datetime.timedelta]):
     def parse(self, value: str | int | float) -> datetime.timedelta:
         if isinstance(value, (int, float)):
             return datetime.timedelta(seconds=value)
+
+        from stdl.dt import hms_to_seconds
 
         try:
             seconds = hms_to_seconds(value)
@@ -636,8 +645,7 @@ class IntParser(NumberParser[int]):
             value = value.replace("^", "**")
 
             try:
-                node = ast.parse(value, mode="eval")
-                result = self._eval_node(node.body)
+                result = self._eval_node(self._parse_expression(value))
             except (SyntaxError, TypeError, NameError) as err:
                 raise ValueError(fmt_parser_err(value, int, "invalid expression or name")) from err
             except ZeroDivisionError as err:
@@ -646,6 +654,18 @@ class IntParser(NumberParser[int]):
             return self._convert_result(result)
 
         raise ValueError(fmt_parser_err(value, int, "invalid integer value"))
+
+    def _parse_expression(self, value: str) -> ast.expr:
+        node = ast.parse(value, mode="eval")
+        for constant in ast.walk(node):
+            if isinstance(constant, ast.Constant) and isinstance(constant.value, float):
+                literal = ast.get_source_segment(value, constant)
+                if literal is None:
+                    raise TypeError("numeric literal has no source location")
+
+                constant.value = int(Decimal(literal))
+
+        return node.body
 
     def _basic_parse(self, value: str) -> int | None:
         """Override to reject float-like strings for union parsing."""

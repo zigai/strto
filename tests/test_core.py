@@ -1,10 +1,13 @@
 import enum
+import json
 import typing
 from collections.abc import Iterable, Mapping, Sequence
 
 import pytest
+from hypothesis import example, given
+from hypothesis import strategies as st
 
-from strto import StrToTypeParser, core
+from strto import StrToTypeParser, core, get_parser
 
 
 class Choice(enum.Enum):
@@ -60,6 +63,16 @@ def test_parse_alias_mapping_error() -> None:
     parser = core.StrToTypeParser({int: int, str: str, dict: dict})
     with pytest.raises(ValueError, match="expected JSON string for mapping"):
         parser.parse("{", dict[str, int])
+
+
+@given(number=st.integers(min_value=0, max_value=10**30), padding=st.integers(1, 12))
+@example(number=0, padding=1)
+def test_parse_mapping_rejects_converted_key_collisions(number: int, padding: int) -> None:
+    value = json.dumps({str(number): "left", "0" * padding + str(number): "right"})
+    parser = get_parser(from_file=False)
+
+    with pytest.raises((ValueError, TypeError)):
+        parser.parse(value, dict[int, str])
 
 
 def test_parse_alias_abstract_collection_error(parser: StrToTypeParser) -> None:

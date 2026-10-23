@@ -2,9 +2,12 @@ import array
 import ast
 import datetime
 import json
+import shlex
 from types import SimpleNamespace
 
 import pytest
+from hypothesis import example, given
+from hypothesis import strategies as st
 
 from strto import parsers
 
@@ -287,6 +290,17 @@ def test_bool_parser_custom_synonyms_case_insensitive() -> None:
     )
     assert parser("YES") is True
     assert parser("no") is False
+
+
+@given(
+    first=st.text(alphabet="abc012 ='\"\\;\t\nΩ", max_size=24),
+    second=st.text(alphabet="abc012 ='\"\\;\t\nΩ", max_size=24),
+)
+@example(first="", second=" ")
+def test_parse_kv_mapping_preserves_quoted_strings(first: str, second: str) -> None:
+    value = f"first={shlex.quote(first)};second={shlex.quote(second)}"
+
+    assert parsers.parse_kv_mapping(value) == {"first": first, "second": second}
 
 
 def test_parse_kv_mapping_rejects_invalid_json_value() -> None:
