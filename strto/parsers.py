@@ -512,6 +512,8 @@ class SliceParser(ParserBase[slice]):
     def parse(self, value: str | slice) -> slice:
         if isinstance(value, slice):
             return value
+        if not isinstance(value, str):
+            raise TypeError(fmt_parser_err(value, slice, "expected string or slice"))
 
         nums = self._get_nums(value)
         if len(nums) not in (1, 2, 3):
@@ -536,6 +538,8 @@ class RangeParser(ParserBase[range]):
     def parse(self, value: str | range) -> range:
         if isinstance(value, range):
             return value
+        if not isinstance(value, str):
+            raise TypeError(fmt_parser_err(value, range, "expected string or range"))
 
         nums = self._get_nums(value)
         if len(nums) not in (1, 2, 3):
@@ -641,7 +645,7 @@ class IntParser(NumberParser[int]):
         if result is not None:
             return self._convert_result(result)
 
-        if self.allow_expressions:
+        if self.allow_expressions and isinstance(value, str):
             value = value.replace("^", "**")
 
             try:
@@ -735,7 +739,7 @@ class FloatParser(NumberParser[float]):
         if result is not None:
             return self._convert_result(result)
 
-        if self.allow_expressions:
+        if self.allow_expressions and isinstance(value, str):
             value = value.replace("^", "**")
 
             try:

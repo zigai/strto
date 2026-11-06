@@ -219,6 +219,15 @@ def test_int_parser_no_expressions() -> None:
         parser.parse("abc")
 
 
+@pytest.mark.parametrize(
+    "parser",
+    [parsers.IntParser(), parsers.FloatParser(), parsers.SliceParser(), parsers.RangeParser()],
+)
+def test_scalar_parser_rejects_list_value(parser: parsers.ParserBase) -> None:
+    with pytest.raises((ValueError, TypeError)):
+        parser([1, 2])  # type: ignore[arg-type]
+
+
 def test_int_parser_convert_result_error() -> None:
     parser = parsers.IntParser()
     with pytest.raises(TypeError):
