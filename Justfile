@@ -49,7 +49,6 @@ build: require-uv
 
 # Install repository dependencies
 setup: require-uv
-    @git config core.hooksPath .githooks
     @uv sync --inexact --group dev
 
 # Measure all local test suites and print coverage
