@@ -44,8 +44,6 @@ dev = [
     "pytest>=9.0.3",
     "coverage>=7.14.1",
     "ruff==0.16.10",
-    "pre-commit>=4.6.0",
-    "codespell>=2.4.2",
     "pyrefly>=1.0.0",
     "pydantic>=2",
     "hypothesis>=6.168.5",
@@ -68,6 +66,8 @@ module-root = ""
 [tool.coverage.run]
 source = ["strto"]
 branch = true
+parallel = true
+patch = ["subprocess"]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -93,20 +93,18 @@ infer-with-first-use = true
 strict-callable-subtyping = false
 spec-compliant-overloads = false
 
-[tool.codespell]
-skip = '.git,uv.lock'
-
 [tool.uv]
-default-groups = ["test"]
+default-groups = ["dev"]
 [dependency-groups]
 dev = [
-    "codespell>=2.4.2",
-    "pre-commit>=4.6.0",
     "pyrefly>=1.0.0",
     "rattle-lint>=3.4.0",
     "ruff==0.16.10",
+    "pytest>=9.0.3",
+    "coverage>=7.14.1",
+    "pydantic>=2",
+    "hypothesis>=6.168.5",
 ]
-test = ["pytest>=9.0.3", "coverage>=7.14.1", "pydantic>=2", "hypothesis>=6.168.5"]
 
 [tool.rattle]
 root = true
@@ -238,27 +236,20 @@ exclude = ["build"]
 "examples/*.py" = ["INP001"]
 
 [tool.ruff.lint.pep8-naming]
-classmethod-decorators = [
-    "pydantic.validator",
-    "declared_attr",
-    "expression",
-    "comparator",
-]
+classmethod-decorators = ["pydantic.validator", "declared_attr", "expression", "comparator"]
 
 [tool.ruff.lint.flake8-builtins]
 ignorelist = ["id", "input"]
 
 [tool.ruff.lint.flake8-type-checking]
-runtime-evaluated-base-classes = [
-    "pydantic.BaseModel",
-    "sqlalchemy.orm.DeclarativeBase",
-]
+runtime-evaluated-base-classes = ["pydantic.BaseModel", "sqlalchemy.orm.DeclarativeBase"]
 
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "lf"
+exclude = []
 
 [tool.ruff.lint.isort]
 known-first-party = ["strto", "tests"]
