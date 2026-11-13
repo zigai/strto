@@ -1,10 +1,11 @@
 # strto
 
-[![Tests](https://github.com/zigai/strto/actions/workflows/tests.yml/badge.svg)](https://github.com/zigai/strto/actions/workflows/tests.yml)
-[![PyPI version](https://badge.fury.io/py/strto.svg)](https://badge.fury.io/py/strto)
-![Supported versions](https://img.shields.io/badge/python-3.11+-blue.svg)
-[![Downloads](https://static.pepy.tech/badge/strto)](https://pepy.tech/project/strto)
-[![license](https://img.shields.io/github/license/zigai/strto.svg)](https://github.com/zigai/strto/blob/master/LICENSE)
+[![tests](https://img.shields.io/github/actions/workflow/status/zigai/strto/tests.yml?branch=master&label=tests&labelColor=30363d)](https://github.com/zigai/strto/actions/workflows/tests.yml)
+[![PyPI](https://img.shields.io/pypi/v/strto?label=PyPI&color=blue&logo=pypi&logoColor=white&labelColor=30363d)](https://pypi.org/project/strto/)
+[![Python](https://img.shields.io/badge/Python-3.11+-blue?logo=python&logoColor=white&labelColor=30363d)](pyproject.toml)
+[![downloads](https://img.shields.io/pypi/dm/strto?label=downloads&color=blue&labelColor=30363d)](https://pepy.tech/projects/strto)
+[![downloads](https://img.shields.io/pepy/dt/strto?label=downloads&color=blue&labelColor=30363d)](https://pepy.tech/projects/strto)
+[![license](https://img.shields.io/github/license/zigai/strto?label=license&labelColor=30363d)](LICENSE)
 
 `strto` is a Python library for parsing strings into Python objects based on types and type annotations.
 
